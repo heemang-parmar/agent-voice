@@ -5,6 +5,7 @@ from agent_voice_worker.config import (
     DEFAULT_AGENT_NAME,
     DEFAULT_AGENT_TIMEOUT_SECONDS,
     DEFAULT_REALTIME_MODEL,
+    DEFAULT_REALTIME_PROVIDER,
     DEFAULT_REALTIME_VOICE,
     DEFAULT_SESSION_KEY,
     load_worker_config,
@@ -36,6 +37,7 @@ def test_loads_a_valid_configuration_with_defaults() -> None:
     config = result.config
     assert config.livekit_url == "wss://livekit.example.test"
     assert config.openai_api_key == "sk-test"
+    assert config.realtime_provider == DEFAULT_REALTIME_PROVIDER
     assert config.realtime_model == DEFAULT_REALTIME_MODEL
     assert config.realtime_voice == DEFAULT_REALTIME_VOICE
     assert config.adapter == "openai-http"
@@ -62,6 +64,50 @@ def test_treats_blank_values_as_missing() -> None:
     assert result.ok is False
     assert not result.ok
     assert "OPENAI_API_KEY" in result.missing
+
+
+def test_livekit_inference_does_not_require_an_openai_key() -> None:
+    result = load_worker_config(
+        env(OPENAI_API_KEY=None, AGENT_VOICE_REALTIME_PROVIDER="livekit-inference")
+    )
+    assert result.ok is True
+    assert result.ok
+    assert result.config.openai_api_key is None
+    assert result.config.realtime_provider == "livekit-inference"
+    assert result.config.realtime_model == "openai/gpt-4o-mini"
+    assert result.config.realtime_voice == "rigel"
+
+
+def test_rejects_an_unknown_realtime_provider() -> None:
+    result = load_worker_config(env(AGENT_VOICE_REALTIME_PROVIDER="mystery"))
+    assert result.ok is False
+    assert not result.ok
+    assert "AGENT_VOICE_REALTIME_PROVIDER" in result.invalid
+
+
+def test_explicit_openai_realtime_requires_an_openai_key() -> None:
+    result = load_worker_config(
+        env(OPENAI_API_KEY=None, AGENT_VOICE_REALTIME_PROVIDER="openai-realtime")
+    )
+    assert result.ok is False
+    assert not result.ok
+    assert "OPENAI_API_KEY" in result.missing
+
+
+def test_livekit_inference_rejects_openai_realtime_model_and_voice() -> None:
+    result = load_worker_config(
+        env(
+            AGENT_VOICE_REALTIME_PROVIDER="livekit-inference",
+            AGENT_VOICE_REALTIME_MODEL="gpt-realtime",
+            AGENT_VOICE_REALTIME_VOICE="marin",
+        )
+    )
+    assert result.ok is False
+    assert not result.ok
+    assert set(result.invalid) >= {
+        "AGENT_VOICE_REALTIME_MODEL",
+        "AGENT_VOICE_REALTIME_VOICE",
+    }
 
 
 def test_rejects_a_malformed_livekit_url() -> None:

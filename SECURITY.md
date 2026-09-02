@@ -10,7 +10,7 @@ You will get an acknowledgement, and a fix or mitigation plan before any public 
 
 ## Threat model (what this project defends against)
 
-Agent Voice sits between a browser, a LiveKit server, an OpenAI Realtime session and a
+Agent Voice sits between a browser, a LiveKit server, a configured realtime provider and a
 tool-using agent that can perform real work. The main risks are:
 
 1. **Credential exposure.** LiveKit and OpenAI keys, and the delegated agent's endpoint and

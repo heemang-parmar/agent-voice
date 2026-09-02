@@ -290,6 +290,58 @@ Additional release checks performed outside the canonical gate:
 - The worker CLI failed closed without credentials and printed missing variable names only.
 - Production browser QA passed at desktop and mobile widths with no horizontal overflow, keyboard Start activation, the expected fail-closed `503`, and no unexpected console errors.
 
-Provider-backed verification remains deliberately separate: no real LiveKit room, microphone,
-speaker, OpenAI Realtime request, or live Hermes bridge call was exercised without operator-owned
-credentials and services.
+At that initial release gate, no real LiveKit room, microphone, speaker, OpenAI Realtime request,
+or live Hermes bridge call had been exercised. Slice W7 below supersedes that boundary for the
+LiveKit room, microphone, and LiveKit Inference paths; OpenAI Realtime and Hermes delegation remain
+unverified.
+
+## Slice W7 — spawn-safe worker and LiveKit Inference provider
+
+A real local dispatch on macOS exposed a process-boundary defect that unit construction had missed:
+the worker callback was a nested closure and could not be pickled for a spawned LiveKit job process.
+The regression was written first against `ForkingPickler` and failed with the same local-object error.
+The callback is now a module-level function that reloads validated environment configuration inside
+the child process.
+
+```text
+$ uv run pytest tests/test_entrypoint.py::test_worker_entrypoint_is_pickleable_for_spawned_job_processes -q
+1 failed
+$ uv run pytest tests/test_entrypoint.py::test_worker_entrypoint_is_pickleable_for_spawned_job_processes -q
+1 passed
+```
+
+The available OpenAI key was then proven to be a placeholder by the provider's authenticated
+handshake. A second RED/GREEN slice added `AGENT_VOICE_REALTIME_PROVIDER=livekit-inference` so the
+worker can use managed STT → LLM → TTS with its LiveKit credentials and no `OPENAI_API_KEY`.
+`openai-realtime` remains the default and still requires that key.
+
+A credential-bearing smoke test used operator-owned services without printing any value:
+
+```text
+Health:             200, configured=true
+Connection details: 200
+Browser state:      Listening; user and assistant transcripts rendered
+Provider turn:      microphone speech → assistant reply completed
+Remote media:       one audio element attached
+Browser errors:     none
+Worker:             registered, job accepted, spawned process initialized
+Provider pipeline:  STT transcript, LLM reply, TTS publication, endpointing, interruption observed
+```
+
+This verifies token minting, cloud room dispatch, a spawned Agent Voice worker, real microphone
+transcription, model generation, remote audio publication, endpointing, interruption, remote agent
+presence, and the browser's `Listening` transition. It does not independently measure audible
+device playback or verify OpenAI Realtime or a delegated action.
+
+## Updated unified gate after W7
+
+```text
+$ pnpm check
+TypeScript: 29 test files, 268 tests passed
+Python:     199 tests passed
+Ruff:       format and lint passed
+mypy:       32 source files passed
+Build:      Next.js production build passed; /icon.svg emitted
+Secrets:    190 files scanned, no findings
+Result:     check: all gates passed
+```

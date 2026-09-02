@@ -36,7 +36,7 @@ build/
 .playwright/
 playwright-report/
 test-results/
-qa/browser/
+**/qa/browser/
 *.log
 tmp/
 .cache/

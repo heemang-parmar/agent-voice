@@ -17,7 +17,8 @@ pnpm check      # runs every gate; needs no credentials
 ```
 
 Everything under `pnpm check` runs offline. The voice path itself (browser mic → LiveKit →
-worker → OpenAI Realtime → delegated agent) needs real credentials in `.env`; see the README.
+worker → configured realtime provider → delegated agent) needs real credentials in `.env`;
+see the README.
 
 ## Workflow
 

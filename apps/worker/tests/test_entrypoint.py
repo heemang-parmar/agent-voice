@@ -8,15 +8,23 @@ is local (it only stores options), and delegation is exercised through
 
 from __future__ import annotations
 
-from livekit.agents import Agent, ToolError, WorkerOptions
+from dataclasses import replace
+from multiprocessing.reduction import ForkingPickler
+from typing import Any, cast
+from unittest.mock import AsyncMock
 
+import pytest
+from livekit.agents import Agent, AgentSession, ToolError, WorkerOptions, inference
+
+import agent_voice_worker.entrypoint as entrypoint_module
 from agent_voice_worker.adapters.openai_http import OpenAiHttpAdapter
 from agent_voice_worker.adapters.types import ActionContext, AdapterRequest, AdapterResult
-from agent_voice_worker.config import WorkerConfig
+from agent_voice_worker.config import OPTIONAL_ENV, REQUIRED_ENV, WorkerConfig
 from agent_voice_worker.entrypoint import (
     AGENT_INSTRUCTIONS,
     build_adapter,
     build_agent,
+    build_agent_session,
     build_delegate_tool,
     build_realtime_model,
     build_worker_options,
@@ -30,6 +38,7 @@ BASE_CONFIG = WorkerConfig(
     livekit_api_key="lk_key",
     livekit_api_secret="lk_secret",
     openai_api_key="sk-test-not-a-real-key",
+    realtime_provider="openai-realtime",
     realtime_model="gpt-realtime",
     realtime_voice="marin",
     adapter="openai-http",
@@ -81,6 +90,11 @@ def make_runtime(adapter: Scripted) -> ConversationRuntime:
     )
 
 
+def clear_worker_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in set(REQUIRED_ENV + OPTIONAL_ENV + ("OPENAI_API_KEY",)):
+        monkeypatch.delenv(name, raising=False)
+
+
 def test_build_adapter_returns_the_openai_http_adapter_when_configured() -> None:
     adapter = build_adapter(BASE_CONFIG)
     assert isinstance(adapter, OpenAiHttpAdapter)
@@ -88,8 +102,6 @@ def test_build_adapter_returns_the_openai_http_adapter_when_configured() -> None
 
 
 def test_build_adapter_returns_the_null_adapter_when_none_is_configured() -> None:
-    from dataclasses import replace
-
     config = replace(BASE_CONFIG, adapter="none", agent_endpoint=None)
     adapter = build_adapter(config)
     assert isinstance(adapter, NullAdapter)
@@ -104,6 +116,37 @@ def test_build_realtime_model_uses_the_configured_model_and_voice_and_makes_no_n
     assert model._opts.voice == "marin"
 
 
+def test_build_realtime_model_rejects_a_missing_openai_key() -> None:
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+        build_realtime_model(replace(BASE_CONFIG, openai_api_key=None))
+
+
+async def test_build_agent_session_preserves_the_default_openai_realtime_path() -> None:
+    session = build_agent_session(BASE_CONFIG)
+    assert isinstance(session._llm, type(build_realtime_model(BASE_CONFIG)))
+    assert session._stt is None
+    assert session._tts is None
+
+
+async def test_build_agent_session_uses_livekit_inference_without_an_openai_key() -> None:
+    config = replace(
+        BASE_CONFIG,
+        livekit_api_secret="x" * 32,
+        openai_api_key=None,
+        realtime_provider="livekit-inference",
+        realtime_model="openai/gpt-4o-mini",
+        realtime_voice="rigel",
+    )
+    session = build_agent_session(config)
+    assert isinstance(session, AgentSession)
+    assert isinstance(session._stt, inference.STT)
+    assert isinstance(session._llm, inference.LLM)
+    assert isinstance(session._tts, inference.TTS)
+    assert session._stt.model == "deepgram/flux-general"
+    assert session._llm.model == "openai/gpt-4o-mini"
+    assert session._tts.model == "xai/tts-1"
+
+
 def test_build_worker_options_carries_the_fixed_agent_name_and_livekit_credentials() -> None:
     options = build_worker_options(BASE_CONFIG)
     assert isinstance(options, WorkerOptions)
@@ -112,6 +155,48 @@ def test_build_worker_options_carries_the_fixed_agent_name_and_livekit_credentia
     assert options.api_key == "lk_key"
     assert options.api_secret == "lk_secret"
     assert callable(options.entrypoint_fnc)
+
+
+def test_worker_entrypoint_is_pickleable_for_spawned_job_processes() -> None:
+    options = build_worker_options(BASE_CONFIG)
+    ForkingPickler.dumps(options.entrypoint_fnc)
+
+
+async def test_entrypoint_rejects_missing_child_configuration_before_connect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_worker_environment(monkeypatch)
+    connect = AsyncMock()
+    ctx = cast(Any, type("Context", (), {"connect": connect})())
+
+    with pytest.raises(RuntimeError, match="job process"):
+        await entrypoint_module.entrypoint(ctx)
+    connect.assert_not_awaited()
+
+
+async def test_entrypoint_loads_child_environment_and_reaches_the_job_runner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_worker_environment(monkeypatch)
+    values = {
+        "LIVEKIT_URL": BASE_CONFIG.livekit_url,
+        "LIVEKIT_API_KEY": BASE_CONFIG.livekit_api_key,
+        "LIVEKIT_API_SECRET": BASE_CONFIG.livekit_api_secret,
+        "OPENAI_API_KEY": str(BASE_CONFIG.openai_api_key),
+        "AGENT_VOICE_REALTIME_PROVIDER": BASE_CONFIG.realtime_provider,
+        "AGENT_VOICE_AGENT_ENDPOINT": str(BASE_CONFIG.agent_endpoint),
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    run_job = AsyncMock()
+    monkeypatch.setattr(entrypoint_module, "run_job", run_job)
+    ctx = cast(Any, object())
+
+    await entrypoint_module.entrypoint(ctx)
+
+    run_job.assert_awaited_once()
+    assert run_job.await_args is not None
+    assert run_job.await_args.args[1].realtime_provider == "openai-realtime"
 
 
 async def test_delegate_to_agent_returns_the_verified_summary() -> None:

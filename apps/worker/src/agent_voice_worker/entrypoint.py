@@ -1,5 +1,5 @@
 """Wires the versioned protocol and the adapter runner into a real LiveKit
-Agents worker: OpenAI Realtime for the conversational turn, a bounded
+Agents worker: a configured realtime provider for conversation, a bounded
 `delegate_to_agent` tool for everything else. Nothing in this module makes a
 network call at import time or at construction time — connections only
 happen once LiveKit invokes `entrypoint(ctx)` inside a real job.
@@ -8,7 +8,8 @@ happen once LiveKit invokes `entrypoint(ctx)` inside a real job.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Coroutine
+import os
+from collections.abc import Coroutine
 from typing import Any
 
 from livekit import rtc
@@ -20,6 +21,7 @@ from livekit.agents import (
     ToolError,
     WorkerOptions,
     function_tool,
+    inference,
     llm,
 )
 from livekit.agents.voice.events import ConversationItemAddedEvent, UserInputTranscribedEvent
@@ -28,7 +30,7 @@ from livekit.plugins import openai
 from agent_voice_worker.adapters.openai_http import OpenAiHttpAdapter, OpenAiHttpAdapterOptions
 from agent_voice_worker.adapters.run_action import default_new_id
 from agent_voice_worker.adapters.types import AgentAdapter
-from agent_voice_worker.config import WorkerConfig
+from agent_voice_worker.config import ConfigErr, WorkerConfig, load_worker_config
 from agent_voice_worker.protocol.events import AgentVoiceEvent
 from agent_voice_worker.protocol.limits import TOPICS
 from agent_voice_worker.protocol.parse import ProtocolEncodeError, encode_event
@@ -49,6 +51,9 @@ DELEGATE_TOOL_DESCRIPTION = (
     "agent's verified summary, or raises if the agent could not complete it."
 )
 
+INFERENCE_STT_MODEL = "deepgram/flux-general"
+INFERENCE_TTS_MODEL = "xai/tts-1"
+
 
 def build_adapter(config: WorkerConfig) -> AgentAdapter:
     if config.adapter == "none":
@@ -65,11 +70,38 @@ def build_adapter(config: WorkerConfig) -> AgentAdapter:
 
 
 def build_realtime_model(config: WorkerConfig) -> openai.realtime.RealtimeModel:
+    if config.openai_api_key is None:
+        raise ValueError("OPENAI_API_KEY is required for the OpenAI Realtime provider")
     return openai.realtime.RealtimeModel(
         model=config.realtime_model,
         voice=config.realtime_voice,
         api_key=config.openai_api_key,
     )
+
+
+def build_agent_session(config: WorkerConfig) -> AgentSession[Any]:
+    if config.realtime_provider == "livekit-inference":
+        return AgentSession(
+            stt=inference.STT(
+                model=INFERENCE_STT_MODEL,
+                language="en",
+                api_key=config.livekit_api_key,
+                api_secret=config.livekit_api_secret,
+            ),
+            llm=inference.LLM(
+                model=config.realtime_model,
+                api_key=config.livekit_api_key,
+                api_secret=config.livekit_api_secret,
+            ),
+            tts=inference.TTS(
+                model=INFERENCE_TTS_MODEL,
+                voice=config.realtime_voice,
+                language="en",
+                api_key=config.livekit_api_key,
+                api_secret=config.livekit_api_secret,
+            ),
+        )
+    return AgentSession(llm=build_realtime_model(config))
 
 
 async def delegate_to_agent(runtime: ConversationRuntime, request: str) -> str:
@@ -137,56 +169,67 @@ def wire_session_events(session: AgentSession[Any], runtime: ConversationRuntime
     )
 
 
-def _make_entrypoint(config: WorkerConfig) -> Callable[[JobContext], Awaitable[None]]:
-    async def entrypoint(ctx: JobContext) -> None:
-        await ctx.connect()
+async def entrypoint(ctx: JobContext) -> None:
+    """Spawn-safe LiveKit job entrypoint.
 
-        adapter = build_adapter(config)
-        conversation_id = ctx.room.name or default_new_id()
+    LiveKit serializes this callback when it launches job processes. Keeping it
+    at module scope makes it pickleable on spawn-based platforms such as macOS.
+    The child inherits the worker environment and validates it independently.
+    """
+    result = load_worker_config(dict(os.environ))
+    if isinstance(result, ConfigErr):
+        names = ", ".join(sorted(set(result.missing + result.invalid)))
+        raise RuntimeError(f"worker configuration is unavailable in the job process: {names}")
+    await run_job(ctx, result.config)
 
-        publish_tasks: set[asyncio.Task[None]] = set()
 
-        def publish_event(event: AgentVoiceEvent) -> None:
-            try:
-                payload = encode_event(event)
-            except ProtocolEncodeError:
-                return
-            task = asyncio.create_task(
-                ctx.room.local_participant.publish_data(
-                    payload,
-                    reliable=True,
-                    topic=TOPICS.events,
-                )
+async def run_job(ctx: JobContext, config: WorkerConfig) -> None:
+    await ctx.connect()
+
+    adapter = build_adapter(config)
+    conversation_id = ctx.room.name or default_new_id()
+
+    publish_tasks: set[asyncio.Task[None]] = set()
+
+    def publish_event(event: AgentVoiceEvent) -> None:
+        try:
+            payload = encode_event(event)
+        except ProtocolEncodeError:
+            return
+        task = asyncio.create_task(
+            ctx.room.local_participant.publish_data(
+                payload,
+                reliable=True,
+                topic=TOPICS.events,
             )
-            publish_tasks.add(task)
-            task.add_done_callback(publish_tasks.discard)
-
-        runtime = ConversationRuntime(
-            conversation_id=conversation_id,
-            session_key=config.session_key,
-            adapter=adapter,
-            timeout_seconds=float(config.agent_timeout_seconds),
-            emit=publish_event,
         )
+        publish_tasks.add(task)
+        task.add_done_callback(publish_tasks.discard)
 
-        def on_data_received(packet: rtc.DataPacket) -> None:
-            if packet.topic == TOPICS.commands:
-                runtime.handle_command(packet.data)
+    runtime = ConversationRuntime(
+        conversation_id=conversation_id,
+        session_key=config.session_key,
+        adapter=adapter,
+        timeout_seconds=float(config.agent_timeout_seconds),
+        emit=publish_event,
+    )
 
-        ctx.room.on("data_received", on_data_received)
+    def on_data_received(packet: rtc.DataPacket) -> None:
+        if packet.topic == TOPICS.commands:
+            runtime.handle_command(packet.data)
 
-        session = AgentSession[None](llm=build_realtime_model(config))
-        wire_session_events(session, runtime)
-        agent = build_agent(runtime, enable_delegation=config.adapter != "none")
-        await session.start(agent=agent, room=ctx.room)
-        runtime.emit_conversation_started(agent_name=config.agent_name)
+    ctx.room.on("data_received", on_data_received)
 
-    return entrypoint
+    session = build_agent_session(config)
+    wire_session_events(session, runtime)
+    agent = build_agent(runtime, enable_delegation=config.adapter != "none")
+    await session.start(agent=agent, room=ctx.room)
+    runtime.emit_conversation_started(agent_name=config.agent_name)
 
 
 def build_worker_options(config: WorkerConfig) -> WorkerOptions:
     return WorkerOptions(
-        entrypoint_fnc=_make_entrypoint(config),
+        entrypoint_fnc=entrypoint,
         agent_name=config.agent_name,
         ws_url=config.livekit_url,
         api_key=config.livekit_api_key,

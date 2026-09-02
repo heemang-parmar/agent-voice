@@ -18,10 +18,10 @@ REQUIRED_ENV: tuple[str, ...] = (
     "LIVEKIT_URL",
     "LIVEKIT_API_KEY",
     "LIVEKIT_API_SECRET",
-    "OPENAI_API_KEY",
 )
 
 OPTIONAL_ENV: tuple[str, ...] = (
+    "AGENT_VOICE_REALTIME_PROVIDER",
     "AGENT_VOICE_REALTIME_MODEL",
     "AGENT_VOICE_REALTIME_VOICE",
     "AGENT_VOICE_ADAPTER",
@@ -34,8 +34,12 @@ OPTIONAL_ENV: tuple[str, ...] = (
 )
 
 AdapterName = Literal["openai-http", "none"]
+RealtimeProvider = Literal["openai-realtime", "livekit-inference"]
 
 ALLOWED_ADAPTERS: frozenset[AdapterName] = frozenset({"openai-http", "none"})
+ALLOWED_REALTIME_PROVIDERS: frozenset[RealtimeProvider] = frozenset(
+    {"openai-realtime", "livekit-inference"}
+)
 
 ALLOWED_REALTIME_MODELS: frozenset[str] = frozenset(
     {"gpt-realtime", "gpt-4o-realtime-preview", "gpt-4o-mini-realtime-preview"}
@@ -47,6 +51,9 @@ ALLOWED_REALTIME_VOICES: frozenset[str] = frozenset(
 
 DEFAULT_REALTIME_MODEL = "gpt-realtime"
 DEFAULT_REALTIME_VOICE = "marin"
+DEFAULT_REALTIME_PROVIDER: RealtimeProvider = "openai-realtime"
+INFERENCE_REALTIME_MODEL = "openai/gpt-4o-mini"
+INFERENCE_REALTIME_VOICE = "rigel"
 DEFAULT_ADAPTER: AdapterName = "openai-http"
 DEFAULT_AGENT_MODEL = "default"
 DEFAULT_SESSION_KEY = "agent-voice-local"
@@ -66,7 +73,8 @@ class WorkerConfig:
     livekit_url: str
     livekit_api_key: str = field(repr=False)
     livekit_api_secret: str = field(repr=False)
-    openai_api_key: str = field(repr=False)
+    openai_api_key: str | None = field(repr=False)
+    realtime_provider: RealtimeProvider
     realtime_model: str
     realtime_voice: str
     adapter: AdapterName
@@ -145,20 +153,47 @@ def load_worker_config(env: Env) -> ConfigResult:
     if livekit_api_secret is None:
         missing.append("LIVEKIT_API_SECRET")
 
+    raw_realtime_provider = _read(env, "AGENT_VOICE_REALTIME_PROVIDER") or DEFAULT_REALTIME_PROVIDER
+    realtime_provider: RealtimeProvider | None = (
+        raw_realtime_provider if raw_realtime_provider in ALLOWED_REALTIME_PROVIDERS else None
+    )
+    if realtime_provider is None:
+        invalid.append("AGENT_VOICE_REALTIME_PROVIDER")
+
     openai_api_key = _read(env, "OPENAI_API_KEY")
-    if openai_api_key is None:
+    if realtime_provider != "livekit-inference" and openai_api_key is None:
         missing.append("OPENAI_API_KEY")
 
-    realtime_model = _read(env, "AGENT_VOICE_REALTIME_MODEL") or DEFAULT_REALTIME_MODEL
-    if realtime_model not in ALLOWED_REALTIME_MODELS:
+    default_model = (
+        INFERENCE_REALTIME_MODEL
+        if realtime_provider == "livekit-inference"
+        else DEFAULT_REALTIME_MODEL
+    )
+    realtime_model = _read(env, "AGENT_VOICE_REALTIME_MODEL") or default_model
+    allowed_models = (
+        {INFERENCE_REALTIME_MODEL}
+        if realtime_provider == "livekit-inference"
+        else ALLOWED_REALTIME_MODELS
+    )
+    if realtime_model not in allowed_models:
         invalid.append("AGENT_VOICE_REALTIME_MODEL")
 
-    realtime_voice = _read(env, "AGENT_VOICE_REALTIME_VOICE") or DEFAULT_REALTIME_VOICE
-    if realtime_voice not in ALLOWED_REALTIME_VOICES:
+    default_voice = (
+        INFERENCE_REALTIME_VOICE
+        if realtime_provider == "livekit-inference"
+        else DEFAULT_REALTIME_VOICE
+    )
+    realtime_voice = _read(env, "AGENT_VOICE_REALTIME_VOICE") or default_voice
+    allowed_voices = (
+        {INFERENCE_REALTIME_VOICE}
+        if realtime_provider == "livekit-inference"
+        else ALLOWED_REALTIME_VOICES
+    )
+    if realtime_voice not in allowed_voices:
         invalid.append("AGENT_VOICE_REALTIME_VOICE")
 
     raw_adapter = _read(env, "AGENT_VOICE_ADAPTER") or DEFAULT_ADAPTER
-    adapter: AdapterName | None = raw_adapter if raw_adapter in ALLOWED_ADAPTERS else None  # type: ignore[assignment]
+    adapter: AdapterName | None = raw_adapter if raw_adapter in ALLOWED_ADAPTERS else None
     if adapter is None:
         invalid.append("AGENT_VOICE_ADAPTER")
 
@@ -203,7 +238,8 @@ def load_worker_config(env: Env) -> ConfigResult:
         or livekit_url is None
         or livekit_api_key is None
         or livekit_api_secret is None
-        or openai_api_key is None
+        or realtime_provider is None
+        or (realtime_provider == "openai-realtime" and openai_api_key is None)
         or adapter is None
         or agent_timeout_seconds is None
     ):
@@ -215,6 +251,7 @@ def load_worker_config(env: Env) -> ConfigResult:
             livekit_api_key=livekit_api_key,
             livekit_api_secret=livekit_api_secret,
             openai_api_key=openai_api_key,
+            realtime_provider=realtime_provider,
             realtime_model=realtime_model,
             realtime_voice=realtime_voice,
             adapter=adapter,

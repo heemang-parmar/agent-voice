@@ -34,8 +34,8 @@ Status reflects what has actually been exercised locally, recorded in
 | Adapter SDK (`@agent-voice/adapter-sdk`) | **Verified** | Action runner and approval broker covered by tests. |
 | OpenAI-compatible HTTP adapter (`@agent-voice/adapter-openai-http`) | **Verified (unit level, mocked transport)** | Request/response shape, bounds, and failure mapping covered by tests. Not exercised against a live endpoint with real credentials. |
 | Web app — configuration, origin checks, rate limiting, token minting | **Verified** | Server-side logic covered by tests; see `docs/verification.md`. |
-| Web app — full browser voice session (mic → LiveKit → remote audio) | **Not verified** | Requires real LiveKit and OpenAI credentials; not exercised end-to-end in this repository's test history. |
-| Worker (LiveKit Agents, Python) | **Verified locally; provider path not exercised** | Runtime, CLI, transcript bridge, action delegation, bounded approvals, cancellation, timeout, and event publication are covered by tests. A real LiveKit/OpenAI session still requires operator credentials. |
+| Web app — LiveKit voice session | **Verified locally** | A real token, room dispatch, Agent Voice participant, microphone transcripts, assistant replies, interruption handling, and an attached remote audio element were observed without browser errors. Audible device playback was not independently measured. |
+| Worker (LiveKit Agents, Python) | **Verified locally with LiveKit Inference** | A real cloud job spawned on macOS; managed STT accepted microphone speech, the LLM produced replies, TTS published remote audio, and endpointing/interruption ran. OpenAI Realtime remains unverified. |
 | **Hermes** (OpenAI-compatible endpoint) | **Reference target; live bridge not verified** | The generic adapter uses an OpenAI-compatible chat/completions shape. Tests use a mocked transport; this release did not call a running Hermes endpoint. |
 | Claude Code, Codex, OpenClaw, or other agent CLIs | **Not implemented, not verified** | No adapter exists yet. Do not treat these as supported until an adapter ships with the same test coverage as `adapter-openai-http`. |
 
@@ -64,8 +64,11 @@ See [`docs/architecture.md`](docs/architecture.md) for the request/event flow an
 ## Quick start
 
 Requirements: Node.js ≥ 20.9, pnpm ≥ 9, Python 3.12 with
-[uv](https://docs.astral.sh/uv/) (worker only), a LiveKit server (self-hosted or
-cloud), and an OpenAI API key if you want the realtime voice path.
+[uv](https://docs.astral.sh/uv/) (worker only), and a LiveKit server (self-hosted
+or cloud). The default OpenAI Realtime provider also needs an OpenAI API key;
+LiveKit Inference uses the LiveKit credentials for managed STT → LLM → TTS.
+The recorded live verification uses `AGENT_VOICE_REALTIME_PROVIDER=livekit-inference`;
+the default `openai-realtime` path has not been exercised end-to-end in this release.
 
 ```bash
 pnpm setup      # installs the workspace, creates .env from .env.example
@@ -91,7 +94,8 @@ errors, or committed.**
 | `LIVEKIT_URL` | web, worker | LiveKit server WebSocket URL |
 | `LIVEKIT_API_KEY` | web, worker | LiveKit API key (server-side only) |
 | `LIVEKIT_API_SECRET` | web, worker | LiveKit API secret (server-side only) |
-| `OPENAI_API_KEY` | worker | Realtime conversation provider key |
+| `AGENT_VOICE_REALTIME_PROVIDER` | worker | `openai-realtime` (default) or `livekit-inference` |
+| `OPENAI_API_KEY` | worker | Required only for `openai-realtime` |
 | `AGENT_VOICE_REALTIME_MODEL` | worker | Realtime model id, must match the worker's server-side allowlist |
 | `AGENT_VOICE_REALTIME_VOICE` | worker | Realtime voice id |
 | `AGENT_VOICE_ADAPTER` | worker | Delegate adapter selection (`openai-http` or `none`) |
@@ -120,10 +124,12 @@ pnpm dev:worker       # worker only (needs full worker configuration)
 node scripts/check-env.mjs --component worker --strict
 ```
 
-The web app runs and is testable without any credentials. The full voice path —
-microphone → LiveKit → worker → realtime model → delegated agent — requires real
-LiveKit and OpenAI credentials and has not been exercised end-to-end in this
-repository's own test history; see the compatibility matrix above.
+The web app runs and is testable without credentials. The connected path requires
+real LiveKit credentials plus either OpenAI Realtime credentials or LiveKit
+Inference access. Real room dispatch, microphone transcription, model replies, and
+remote audio publication have been exercised. Audible device playback and a
+delegated action remain outside the recorded verification boundary; see the
+compatibility matrix above.
 
 For containerized development, see [`docker-compose.yml`](docker-compose.yml). It
 builds the web and worker images from the Dockerfiles in this repository and

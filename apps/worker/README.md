@@ -6,7 +6,7 @@ It is not a second agent brain. Memory, tools, permissions, approval policy, exe
 
 ## Implemented behavior
 
-- Starts an OpenAI Realtime `AgentSession` through LiveKit Agents.
+- Starts either an OpenAI Realtime session or a LiveKit Inference STT → LLM → TTS session.
 - Publishes versioned events on `agent-voice.events.v1`.
 - Accepts bounded commands on `agent-voice.commands.v1`.
 - Forwards interim and final user transcripts.
@@ -22,7 +22,7 @@ It is not a second agent brain. Memory, tools, permissions, approval policy, exe
 - Python 3.12
 - `uv`
 - A LiveKit server
-- An OpenAI API key for the reference realtime model
+- An OpenAI API key only when `AGENT_VOICE_REALTIME_PROVIDER=openai-realtime`
 - A trusted OpenAI-compatible action-agent endpoint when `AGENT_VOICE_ADAPTER=openai-http`
 
 ## Configuration
@@ -34,11 +34,12 @@ Required for the realtime worker:
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
-- `OPENAI_API_KEY`
+- `OPENAI_API_KEY` when using `openai-realtime`
 - `AGENT_VOICE_AGENT_ENDPOINT` when using `openai-http`
 
 Important optional settings:
 
+- `AGENT_VOICE_REALTIME_PROVIDER` (`openai-realtime` or `livekit-inference`)
 - `AGENT_VOICE_REALTIME_MODEL`
 - `AGENT_VOICE_REALTIME_VOICE`
 - `AGENT_VOICE_ADAPTER` (`openai-http` or `none`)
@@ -49,6 +50,9 @@ Important optional settings:
 - `AGENT_VOICE_AGENT_NAME`
 
 See the root [`.env.example`](../../.env.example) for the full contract.
+The shipped LiveKit Inference pipeline is English-only and uses managed Deepgram
+STT, OpenAI-compatible LLM inference, and xAI TTS. The default OpenAI Realtime
+path remains available but was not exercised end-to-end in this release.
 
 ## Run
 
@@ -84,4 +88,4 @@ The root `pnpm check` runs these worker checks together with the TypeScript pack
 
 The worker runtime, CLI, transcript bridge, protocol parsing, action lifecycle, approvals, cancellation, timeout, and failure redaction are locally tested.
 
-A real LiveKit room, browser microphone/speaker exchange, OpenAI Realtime call, or live Hermes bridge requires operator-owned services and credentials. This repository does not claim those provider-backed paths have been exercised without that evidence.
+A real LiveKit room dispatch, microphone transcription, LiveKit Inference model reply, remote audio publication, endpointing, and interruption have been exercised with operator-owned services. Audible device playback, an OpenAI Realtime call, and a delegated Hermes action remain unverified.
