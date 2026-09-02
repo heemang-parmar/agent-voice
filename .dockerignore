@@ -1,0 +1,58 @@
+# Never send secrets or local configuration into a build context.
+.env
+.env.*
+!.env.example
+!examples/**/.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+livekit.toml
+
+# Git
+.git/
+.gitignore
+
+# Node / Next.js
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+coverage/
+**/coverage/
+dist/
+**/dist/
+.eslintcache
+
+# Python
+.venv/
+**/.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+
+# Local state, tooling output, docs not needed at build time
+.vercel/
+.playwright/
+playwright-report/
+test-results/
+*.log
+tmp/
+.cache/
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

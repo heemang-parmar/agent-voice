@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "id": "evt_0008",
+  "ts": "2026-01-01T12:00:06.000Z",
+  "conversationId": "conv_demo",
+  "type": "approval.requested",
+  "actionId": "act_01",
+  "approvalId": "apr_01",
+  "prompt": "Re-run the two failed jobs on the nightly pipeline?",
+  "expiresAt": "2026-01-01T12:02:06.000Z"
+}

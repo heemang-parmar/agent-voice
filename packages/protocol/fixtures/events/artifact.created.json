@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "id": "evt_0010",
+  "ts": "2026-01-01T12:00:12.000Z",
+  "conversationId": "conv_demo",
+  "type": "artifact.created",
+  "actionId": "act_01",
+  "artifact": {
+    "id": "art_01",
+    "kind": "link",
+    "title": "Nightly pipeline run #4812",
+    "url": "https://ci.example.com/pipelines/4812"
+  }
+}

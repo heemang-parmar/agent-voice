@@ -1,0 +1,14 @@
+{
+  "expect": "invalid_event",
+  "note": "action.verified can only carry a verified verification state",
+  "message": {
+    "v": 1,
+    "id": "evt_bad_08",
+    "ts": "2026-01-01T12:00:00.000Z",
+    "conversationId": "conv_demo",
+    "type": "action.verified",
+    "actionId": "act_01",
+    "summary": "Done, probably.",
+    "verification": { "state": "unverified", "method": "guess" }
+  }
+}

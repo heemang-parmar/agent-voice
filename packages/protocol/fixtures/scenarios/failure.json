@@ -1,0 +1,54 @@
+{
+  "name": "failure",
+  "description": "The delegated agent is unreachable: the action fails honestly and nothing is claimed.",
+  "events": [
+    {
+      "v": 1,
+      "id": "evt_f_001",
+      "ts": "2026-01-01T13:00:00.000Z",
+      "conversationId": "conv_failure",
+      "type": "conversation.started",
+      "agentName": "agent-voice",
+      "adapter": "openai-http"
+    },
+    {
+      "v": 1,
+      "id": "evt_f_002",
+      "ts": "2026-01-01T13:00:02.000Z",
+      "conversationId": "conv_failure",
+      "type": "user.transcript.final",
+      "segmentId": "seg_u_1",
+      "text": "Archive last month's invoices."
+    },
+    {
+      "v": 1,
+      "id": "evt_f_003",
+      "ts": "2026-01-01T13:00:02.800Z",
+      "conversationId": "conv_failure",
+      "type": "action.started",
+      "actionId": "act_f_1",
+      "title": "Archive last month's invoices",
+      "adapter": "openai-http"
+    },
+    {
+      "v": 1,
+      "id": "evt_f_004",
+      "ts": "2026-01-01T13:00:08.000Z",
+      "conversationId": "conv_failure",
+      "type": "action.failed",
+      "actionId": "act_f_1",
+      "code": "unavailable",
+      "summary": "The agent is not reachable right now, so nothing was changed.",
+      "retryable": true
+    },
+    {
+      "v": 1,
+      "id": "evt_f_005",
+      "ts": "2026-01-01T13:00:09.000Z",
+      "conversationId": "conv_failure",
+      "type": "agent.message.final",
+      "messageId": "msg_a_1",
+      "text": "I couldn't reach the agent, so the invoices were not archived. Want me to try again?"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "expect": "invalid_event",
+  "message": {
+    "v": 1,
+    "id": "evt_bad_09",
+    "ts": "2026-01-01T12:00:00.000Z",
+    "conversationId": "conv_demo",
+    "type": "action.failed",
+    "actionId": "act_01",
+    "code": "exploded",
+    "summary": "Something went wrong.",
+    "retryable": false
+  }
+}

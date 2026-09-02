@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "id": "evt_0003",
+  "ts": "2026-01-01T12:00:02.000Z",
+  "conversationId": "conv_demo",
+  "type": "user.transcript.final",
+  "segmentId": "seg_user_01",
+  "text": "Can you check whether the nightly build passed and summarize the failures?"
+}

@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "id": "cmd_0001",
+  "ts": "2026-01-01T12:00:09.000Z",
+  "conversationId": "conv_demo",
+  "type": "approval.respond",
+  "actionId": "act_01",
+  "approvalId": "apr_01",
+  "decision": "approved"
+}

@@ -1,0 +1,14 @@
+{
+  "expect": "invalid_event",
+  "note": "every approval is bound to an action and must expire",
+  "message": {
+    "v": 1,
+    "id": "evt_bad_04",
+    "ts": "2026-01-01T12:00:00.000Z",
+    "conversationId": "conv_demo",
+    "type": "approval.requested",
+    "actionId": "act_01",
+    "approvalId": "apr_01",
+    "prompt": "Proceed?"
+  }
+}

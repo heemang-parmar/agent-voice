@@ -1,0 +1,144 @@
+{
+  "expect": "invalid_event",
+  "message": {
+    "v": 1,
+    "id": "evt_bad_14",
+    "ts": "2026-01-01T12:00:00.000Z",
+    "conversationId": "conv_demo",
+    "type": "action.verified",
+    "actionId": "act_01",
+    "summary": "Done.",
+    "verification": {
+      "state": "verified",
+      "method": "test"
+    },
+    "artifacts": [
+      {
+        "id": "art_0",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_1",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_2",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_3",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_4",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_5",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_6",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_7",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_8",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_9",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_10",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_11",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_12",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_13",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_14",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_15",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_16",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_17",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_18",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_19",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      },
+      {
+        "id": "art_20",
+        "kind": "text",
+        "title": "t",
+        "text": "x"
+      }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "expect": "unsupported_version",
+  "message": {
+    "v": 2,
+    "id": "evt_bad_12",
+    "ts": "2026-01-01T12:00:00.000Z",
+    "conversationId": "conv_demo",
+    "type": "conversation.started",
+    "agentName": "agent-voice",
+    "adapter": "openai-http"
+  }
+}

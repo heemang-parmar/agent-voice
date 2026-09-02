@@ -1,0 +1,13 @@
+{
+  "expect": "invalid_event",
+  "note": "events are strict; unknown keys are rejected",
+  "message": {
+    "v": 1,
+    "id": "evt_bad_13",
+    "ts": "2026-01-01T12:00:00.000Z",
+    "conversationId": "conv_demo",
+    "type": "conversation.cancelled",
+    "reason": "user",
+    "extra": true
+  }
+}

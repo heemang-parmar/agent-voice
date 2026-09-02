@@ -1,0 +1,75 @@
+{
+  "name": "cancellation",
+  "description": "The user cancels a running action; the approval expires unanswered and the conversation is cancelled.",
+  "events": [
+    {
+      "v": 1,
+      "id": "evt_c_001",
+      "ts": "2026-01-01T14:00:00.000Z",
+      "conversationId": "conv_cancel",
+      "type": "conversation.started",
+      "agentName": "agent-voice",
+      "adapter": "openai-http"
+    },
+    {
+      "v": 1,
+      "id": "evt_c_002",
+      "ts": "2026-01-01T14:00:02.000Z",
+      "conversationId": "conv_cancel",
+      "type": "user.transcript.final",
+      "segmentId": "seg_u_1",
+      "text": "Rotate the staging database credentials."
+    },
+    {
+      "v": 1,
+      "id": "evt_c_003",
+      "ts": "2026-01-01T14:00:02.500Z",
+      "conversationId": "conv_cancel",
+      "type": "action.started",
+      "actionId": "act_c_1",
+      "title": "Rotate staging database credentials",
+      "adapter": "openai-http"
+    },
+    {
+      "v": 1,
+      "id": "evt_c_004",
+      "ts": "2026-01-01T14:00:03.000Z",
+      "conversationId": "conv_cancel",
+      "type": "approval.requested",
+      "actionId": "act_c_1",
+      "approvalId": "apr_c_1",
+      "prompt": "Rotate the staging database credentials now? Connected services will need the new values.",
+      "expiresAt": "2026-01-01T14:02:03.000Z"
+    },
+    {
+      "v": 1,
+      "id": "evt_c_005",
+      "ts": "2026-01-01T14:00:20.000Z",
+      "conversationId": "conv_cancel",
+      "type": "approval.resolved",
+      "actionId": "act_c_1",
+      "approvalId": "apr_c_1",
+      "decision": "rejected",
+      "resolvedBy": "user"
+    },
+    {
+      "v": 1,
+      "id": "evt_c_006",
+      "ts": "2026-01-01T14:00:20.200Z",
+      "conversationId": "conv_cancel",
+      "type": "action.failed",
+      "actionId": "act_c_1",
+      "code": "rejected",
+      "summary": "You declined the approval, so the credentials were not rotated.",
+      "retryable": false
+    },
+    {
+      "v": 1,
+      "id": "evt_c_007",
+      "ts": "2026-01-01T14:00:25.000Z",
+      "conversationId": "conv_cancel",
+      "type": "conversation.cancelled",
+      "reason": "user"
+    }
+  ]
+}

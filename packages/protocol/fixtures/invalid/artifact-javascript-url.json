@@ -1,0 +1,13 @@
+{
+  "expect": "invalid_event",
+  "note": "artifact URLs must be http(s); script and data URLs are rejected",
+  "message": {
+    "v": 1,
+    "id": "evt_bad_01",
+    "ts": "2026-01-01T12:00:00.000Z",
+    "conversationId": "conv_demo",
+    "type": "artifact.created",
+    "actionId": "act_01",
+    "artifact": { "id": "art_x", "kind": "link", "title": "Click", "url": "javascript:alert(1)" }
+  }
+}

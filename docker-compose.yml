@@ -1,0 +1,64 @@
+# Local/development Compose file for Agent Voice.
+#
+# This file never embeds a secret. Every credential-shaped value is read from
+# your shell environment or a git-ignored .env file next to this file (Compose
+# loads .env automatically; see https://docs.docker.com/compose/environment-variables/).
+# Copy .env.example to .env and fill in real values before running this.
+#
+# This is a development convenience, not a production manifest — see
+# docs/security.md before deploying anywhere beyond your own machine.
+#
+# Usage:
+#   docker compose up --build
+#
+# The worker starts through agent_voice_worker.main. It still requires the
+# LiveKit, realtime-model, and delegated-agent configuration documented in
+# apps/worker/README.md. Comment out the worker service if you only want the
+# credential-free web shell.
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      AGENT_VOICE_AGENT_NAME: ${AGENT_VOICE_AGENT_NAME:-agent-voice}
+      AGENT_VOICE_ALLOWED_ORIGINS: ${AGENT_VOICE_ALLOWED_ORIGINS:-http://localhost:3000}
+      AGENT_VOICE_TOKEN_TTL_SECONDS: ${AGENT_VOICE_TOKEN_TTL_SECONDS:-600}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    depends_on:
+      - web
+    environment:
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      AGENT_VOICE_REALTIME_MODEL: ${AGENT_VOICE_REALTIME_MODEL:-gpt-realtime}
+      AGENT_VOICE_REALTIME_VOICE: ${AGENT_VOICE_REALTIME_VOICE:-marin}
+      AGENT_VOICE_ADAPTER: ${AGENT_VOICE_ADAPTER:-openai-http}
+      AGENT_VOICE_AGENT_ENDPOINT: ${AGENT_VOICE_AGENT_ENDPOINT}
+      AGENT_VOICE_AGENT_API_KEY: ${AGENT_VOICE_AGENT_API_KEY}
+      AGENT_VOICE_AGENT_MODEL: ${AGENT_VOICE_AGENT_MODEL:-default}
+      AGENT_VOICE_SESSION_KEY: ${AGENT_VOICE_SESSION_KEY:-agent-voice-local}
+      AGENT_VOICE_AGENT_TIMEOUT_SECONDS: ${AGENT_VOICE_AGENT_TIMEOUT_SECONDS:-60}
+      AGENT_VOICE_AGENT_NAME: ${AGENT_VOICE_AGENT_NAME:-agent-voice}

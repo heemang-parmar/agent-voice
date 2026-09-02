@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "id": "evt_0011",
+  "ts": "2026-01-01T12:00:14.000Z",
+  "conversationId": "conv_demo",
+  "type": "action.verified",
+  "actionId": "act_01",
+  "summary": "The nightly build failed on two jobs: the integration suite timed out and the docs build had a broken link. Both jobs were re-run.",
+  "verification": {
+    "state": "verified",
+    "method": "agent:tool-check",
+    "detail": "Delegated agent checked the resulting pipeline state"
+  },
+  "artifacts": [
+    {
+      "id": "art_02",
+      "kind": "text",
+      "title": "Failure summary",
+      "text": "integration-suite: timeout after 20m\ndocs-build: broken link in docs/api.md"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "id": "evt_0004",
+  "ts": "2026-01-01T12:00:02.500Z",
+  "conversationId": "conv_demo",
+  "type": "agent.message.partial",
+  "messageId": "msg_agent_01",
+  "text": "Sure, let me ask the agent"
+}

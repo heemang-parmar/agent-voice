@@ -1,0 +1,8 @@
+{
+  "v": 1,
+  "id": "cmd_0002",
+  "ts": "2026-01-01T12:00:09.000Z",
+  "conversationId": "conv_demo",
+  "type": "action.cancel",
+  "actionId": "act_01"
+}

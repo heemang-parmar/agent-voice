@@ -1,0 +1,14 @@
+{
+  "expect": "invalid_event",
+  "note": "blanket approvals (no actionId) are not representable",
+  "message": {
+    "v": 1,
+    "id": "evt_bad_05",
+    "ts": "2026-01-01T12:00:00.000Z",
+    "conversationId": "conv_demo",
+    "type": "approval.requested",
+    "approvalId": "apr_01",
+    "prompt": "Approve everything for this session?",
+    "expiresAt": "2026-01-01T12:02:00.000Z"
+  }
+}

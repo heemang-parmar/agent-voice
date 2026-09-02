@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "id": "evt_0009",
+  "ts": "2026-01-01T12:00:10.000Z",
+  "conversationId": "conv_demo",
+  "type": "approval.resolved",
+  "actionId": "act_01",
+  "approvalId": "apr_01",
+  "decision": "approved",
+  "resolvedBy": "user"
+}

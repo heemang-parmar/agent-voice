@@ -1,0 +1,53 @@
+{
+  "name": "@agent-voice/protocol",
+  "version": "0.1.0",
+  "description": "Versioned, validated event and command contracts for the agent-voice action layer.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./fixtures": {
+      "types": "./src/fixtures.ts",
+      "development": "./src/fixtures.ts",
+      "default": "./dist/fixtures.js"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./fixtures": {
+        "types": "./dist/fixtures.d.ts",
+        "default": "./dist/fixtures.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "fixtures",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest --run",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
+    "generate:fixtures": "node scripts/generate-fixtures.mjs && prettier --write src/fixtures.generated.ts"
+  },
+  "dependencies": {
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "expect": "invalid_event",
+  "message": {
+    "v": 1,
+    "id": "evt_bad_06",
+    "ts": "2026-01-01T12:00:00.000Z",
+    "conversationId": "conv_demo",
+    "type": "approval.resolved",
+    "actionId": "act_01",
+    "approvalId": "apr_01",
+    "decision": "maybe"
+  }
+}

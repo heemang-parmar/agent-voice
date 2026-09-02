@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "id": "evt_0012",
+  "ts": "2026-01-01T12:00:14.000Z",
+  "conversationId": "conv_demo",
+  "type": "action.failed",
+  "actionId": "act_01",
+  "code": "unavailable",
+  "summary": "The agent is not reachable right now, so nothing was changed.",
+  "retryable": true
+}

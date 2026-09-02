@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "id": "evt_0002",
+  "ts": "2026-01-01T12:00:01.000Z",
+  "conversationId": "conv_demo",
+  "type": "user.transcript.partial",
+  "segmentId": "seg_user_01",
+  "text": "Can you check whether the nightly"
+}

@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "id": "evt_0006",
+  "ts": "2026-01-01T12:00:03.200Z",
+  "conversationId": "conv_demo",
+  "type": "action.started",
+  "actionId": "act_01",
+  "title": "Check the nightly build and summarize failures",
+  "adapter": "openai-http"
+}
