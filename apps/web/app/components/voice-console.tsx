@@ -128,13 +128,13 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
             <h1>Conversation</h1>
             <StatusBadge
               status={session.status}
-              micError={textReady ? null : session.state.micError}
+              micError={textReady || session.status === 'ended' ? null : session.state.micError}
               {...(textReady ? { label: 'Ready', description: 'Type a message to begin.' } : {})}
             />
           </div>
         )}
 
-        {viewMode === 'text' ? (
+        {viewMode === 'text' && (session.status !== 'ended' || hasTranscript) ? (
           <div className="stage__stream" ref={stream}>
             <TranscriptView entries={transcript} />
             {actions.length > 0 ? (
@@ -155,11 +155,13 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
           }
         />
         <div className="dock">
-          <TextComposer
-            disabled={!connected}
-            autoFocus={connected && viewMode === 'text'}
-            onSend={(text) => void session.sendText(text)}
-          />
+          {session.status !== 'ended' ? (
+            <TextComposer
+              disabled={!connected}
+              autoFocus={connected && viewMode === 'text'}
+              onSend={(text) => void session.sendText(text)}
+            />
+          ) : null}
           <ControlBar
             micEnabled={session.state.micEnabled}
             audioBlocked={session.state.audioBlocked}

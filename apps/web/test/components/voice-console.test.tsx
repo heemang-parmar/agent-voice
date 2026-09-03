@@ -138,19 +138,26 @@ describe('VoiceConsole', () => {
     expect(screen.getByText(/mic off/i)).toBeInTheDocument();
   });
 
-  it('ends the session, then lets the user retry to start a fresh one', async () => {
+  it('ends the session, then offers a new conversation instead of retry', async () => {
     const { factory, created } = fakeFactory();
     const user = userEvent.setup();
     render(<VoiceConsole createTransport={factory} />);
     await user.click(screen.getByRole('button', { name: /start voice/i }));
     await waitFor(() => expect(created).toHaveLength(1));
 
+    created[0]!.callbacks.onMicError('Microphone permission was not granted. You can keep typing.');
+    await user.click(screen.getByRole('button', { name: /show text chat/i }));
+
     await user.click(await screen.findByRole('button', { name: /^end$/i }));
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(/ended/i);
     });
 
-    await user.click(screen.getByRole('button', { name: /retry/i }));
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /message/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/microphone permission was not granted/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/say something, or type below/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /new conversation/i }));
     await waitFor(() => expect(created).toHaveLength(2));
   });
 
@@ -251,6 +258,9 @@ describe('VoiceConsole', () => {
 
     await user.click(screen.getByRole('button', { name: /show text chat/i }));
     expect(container.querySelector('main')).toHaveAttribute('data-view', 'text');
+    expect(
+      screen.queryByRole('button', { name: /retry|new conversation/i }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /conversation/i })).toBeInTheDocument();
     expect(screen.getByText('keep this')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /message/i })).toHaveFocus();

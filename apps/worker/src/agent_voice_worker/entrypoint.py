@@ -19,6 +19,7 @@ from livekit.agents import (
     FunctionTool,
     JobContext,
     ToolError,
+    TurnHandlingOptions,
     WorkerOptions,
     function_tool,
     inference,
@@ -82,6 +83,20 @@ def build_realtime_model(config: WorkerConfig) -> openai.realtime.RealtimeModel:
 def build_agent_session(config: WorkerConfig) -> AgentSession[Any]:
     if config.realtime_provider == "livekit-inference":
         return AgentSession(
+            turn_handling=TurnHandlingOptions(
+                turn_detection=inference.TurnDetector(),
+                interruption={
+                    "enabled": True,
+                    "mode": "adaptive",
+                    "min_duration": 0.3,
+                    "min_words": 0,
+                    "resume_false_interruption": True,
+                },
+            ),
+            # Browsers already provide WebRTC echo cancellation. LiveKit's
+            # default 3s warmup suppresses genuine barge-ins at the start of
+            # every reply, which makes the agent feel uninterruptible.
+            aec_warmup_duration=0.0,
             stt=inference.STT(
                 model=INFERENCE_STT_MODEL,
                 language="en",

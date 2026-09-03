@@ -147,6 +147,27 @@ async def test_build_agent_session_uses_livekit_inference_without_an_openai_key(
     assert session._tts.model == "xai/tts-1"
 
 
+async def test_livekit_inference_session_allows_immediate_adaptive_barge_in() -> None:
+    config = replace(
+        BASE_CONFIG,
+        livekit_api_secret="x" * 32,
+        openai_api_key=None,
+        realtime_provider="livekit-inference",
+        realtime_model="openai/gpt-4o-mini",
+        realtime_voice="rigel",
+    )
+
+    session = build_agent_session(config)
+
+    interruption = session._opts.turn_handling["interruption"]
+    assert interruption["enabled"] is True
+    assert interruption["mode"] == "adaptive"
+    assert interruption["min_duration"] == 0.3
+    assert interruption["min_words"] == 0
+    assert interruption["resume_false_interruption"] is True
+    assert session._opts.aec_warmup_duration == 0.0
+
+
 def test_build_worker_options_carries_the_fixed_agent_name_and_livekit_credentials() -> None:
     options = build_worker_options(BASE_CONFIG)
     assert isinstance(options, WorkerOptions)

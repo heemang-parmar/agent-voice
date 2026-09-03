@@ -66,7 +66,7 @@ describe('ControlBar', () => {
     expect(onEnd).toHaveBeenCalled();
   });
 
-  it('offers Retry only after an error or when ended, not while live', async () => {
+  it('offers Retry only after an error, not while live or after a normal end', async () => {
     const onRetry = vi.fn();
     const user = userEvent.setup();
     const { rerender } = render(
@@ -99,6 +99,24 @@ describe('ControlBar', () => {
     );
     await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(onRetry).toHaveBeenCalled();
+
+    rerender(
+      <ControlBar
+        micEnabled={false}
+        audioBlocked={false}
+        status="ended"
+        onToggleMic={vi.fn()}
+        onEnd={vi.fn()}
+        onRetry={onRetry}
+        onResumeAudio={vi.fn()}
+        viewMode="text"
+        onViewModeChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new conversation/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^end$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /unmute|mute/i })).not.toBeInTheDocument();
   });
 
   it('surfaces a resumable audio-blocked banner from a user gesture', async () => {

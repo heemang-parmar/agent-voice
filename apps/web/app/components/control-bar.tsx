@@ -27,7 +27,19 @@ export function ControlBar({
   viewMode,
   onViewModeChange,
 }: ControlBarProps) {
-  const canRetry = status === 'error' || status === 'ended';
+  const canRetry = status === 'error';
+
+  if (status === 'ended') {
+    return (
+      <div className="control-bar">
+        <div className="control-bar__buttons">
+          <button type="button" className="button button--primary" onClick={onRetry}>
+            New conversation
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="control-bar">
