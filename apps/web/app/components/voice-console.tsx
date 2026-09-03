@@ -31,6 +31,8 @@ const LIVE_STATUSES = new Set(['listening', 'thinking', 'speaking', 'acting', 'a
 export function VoiceConsole({ createTransport = createLiveKitTransport }: VoiceConsoleProps) {
   const session = useVoiceSession(createTransport);
   const lastMode = useRef<SessionMode>('voice');
+  const viewModeRef = useRef<ConversationView>('voice');
+  const composerInput = useRef<HTMLInputElement>(null);
   const stream = useRef<HTMLDivElement>(null);
   const [viewMode, setViewMode] = useState<ConversationView>('voice');
 
@@ -45,6 +47,7 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
 
   const start = (mode: SessionMode): void => {
     lastMode.current = mode;
+    viewModeRef.current = mode;
     setViewMode(mode);
     void session.start(mode);
   };
@@ -67,10 +70,19 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
   const connected = session.state.phase === 'connected';
   const hasTranscript = transcript.length > 0;
   const changeView = (view: ConversationView): void => {
+    if (viewModeRef.current === view) {
+      if (view === 'text') composerInput.current?.focus();
+      return;
+    }
+    // This focus must remain inside the originating tap/click. Mobile Safari
+    // will not open its software keyboard for the later autofocus effect.
+    viewModeRef.current = view;
+    if (view === 'text') composerInput.current?.focus();
     setViewMode(view);
     lastMode.current = view;
     if (connected) void session.setMicrophoneEnabled(view === 'voice');
   };
+  const switchingToText = connected && viewMode === 'text' && session.state.micEnabled;
   const textReady =
     connected && viewMode === 'text' && !session.state.micEnabled && session.status === 'listening';
   const microphoneOff = connected && viewMode === 'voice' && !session.state.micEnabled;
@@ -128,8 +140,16 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
             <h1>Conversation</h1>
             <StatusBadge
               status={session.status}
-              micError={textReady || session.status === 'ended' ? null : session.state.micError}
-              {...(textReady ? { label: 'Ready', description: 'Type a message to begin.' } : {})}
+              micError={
+                textReady || switchingToText || session.status === 'ended'
+                  ? null
+                  : session.state.micError
+              }
+              {...(switchingToText
+                ? { label: 'Switching to text', description: 'Pausing the microphone…' }
+                : textReady
+                  ? { label: 'Ready', description: 'Type a message to begin.' }
+                  : {})}
             />
           </div>
         )}
@@ -159,6 +179,8 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
             <TextComposer
               disabled={!connected}
               autoFocus={connected && viewMode === 'text'}
+              inputRef={composerInput}
+              onInteraction={() => changeView('text')}
               onSend={(text) => void session.sendText(text)}
             />
           ) : null}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import { SendIcon } from './icons';
 
@@ -8,15 +8,24 @@ export interface TextComposerProps {
   disabled: boolean;
   onSend: (text: string) => void;
   autoFocus?: boolean;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  onInteraction?: () => void;
 }
 
-export function TextComposer({ disabled, onSend, autoFocus = false }: TextComposerProps) {
+export function TextComposer({
+  disabled,
+  onSend,
+  autoFocus = false,
+  inputRef,
+  onInteraction,
+}: TextComposerProps) {
   const [value, setValue] = useState('');
-  const input = useRef<HTMLInputElement>(null);
+  const localInput = useRef<HTMLInputElement>(null);
+  const input = inputRef ?? localInput;
 
   useEffect(() => {
     if (autoFocus && !disabled) input.current?.focus();
-  }, [autoFocus, disabled]);
+  }, [autoFocus, disabled, input]);
 
   const submit = (): void => {
     if (value.trim().length === 0) return;
@@ -44,7 +53,13 @@ export function TextComposer({ disabled, onSend, autoFocus = false }: TextCompos
         disabled={disabled}
         placeholder="Type a message"
         autoComplete="off"
-        onChange={(event) => setValue(event.target.value)}
+        enterKeyHint="send"
+        onPointerDown={onInteraction}
+        onClick={onInteraction}
+        onChange={(event) => {
+          onInteraction?.();
+          setValue(event.target.value);
+        }}
       />
       <button
         type="submit"

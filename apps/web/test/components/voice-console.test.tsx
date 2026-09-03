@@ -169,8 +169,56 @@ describe('VoiceConsole', () => {
     await waitFor(() => expect(created).toHaveLength(1));
     const input = await screen.findByRole('textbox', { name: /message/i });
     await user.type(input, 'hello{Enter}');
-    await user.click(screen.getByRole('button', { name: /show text chat/i }));
     expect(screen.getByText('hello')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /conversation/i })).toBeInTheDocument();
+  });
+
+  it('moves from voice to text and pauses the microphone when the composer is tapped', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    const input = await screen.findByRole('textbox', { name: /message/i });
+    await user.click(input);
+
+    expect(container.querySelector('main')).toHaveAttribute('data-view', 'text');
+    expect(input).toHaveFocus();
+    expect(created).toHaveLength(1);
+    expect(created[0]?.mic).toContain(false);
+    expect(screen.getByRole('status')).toHaveTextContent(/ready/i);
+    expect(screen.getByRole('status')).not.toHaveTextContent(/listening/i);
+  });
+
+  it('does not change modes when keyboard navigation only focuses the composer', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    await user.tab();
+
+    expect(screen.getByRole('textbox', { name: /message/i })).toHaveFocus();
+    expect(container.querySelector('main')).toHaveAttribute('data-view', 'voice');
+    expect(created[0]?.mic).not.toContain(false);
+  });
+
+  it('focuses the composer and pauses the mic when Show text chat is activated', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    const input = screen.getByRole('textbox', { name: /message/i });
+    await user.click(screen.getByRole('button', { name: /show text chat/i }));
+
+    expect(container.querySelector('main')).toHaveAttribute('data-view', 'text');
+    expect(input).toHaveFocus();
+    expect(created).toHaveLength(1);
+    expect(created[0]?.mic).toContain(false);
   });
 
   it('shows the orb before a session starts and moves it to the live status once connected', async () => {
@@ -191,7 +239,7 @@ describe('VoiceConsole', () => {
     });
   });
 
-  it('keeps the orb dominant and reveals accumulated turns only in text view', async () => {
+  it('moves from the voice orb to the transcript when the user starts typing', async () => {
     const { factory, created } = fakeFactory();
     const user = userEvent.setup();
     const { container } = render(<VoiceConsole createTransport={factory} />);
@@ -202,12 +250,9 @@ describe('VoiceConsole', () => {
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
 
     await user.type(await screen.findByRole('textbox', { name: /message/i }), 'hello{Enter}');
-    expect(container.querySelector('[data-orb-state]')).toHaveAttribute('data-scale', 'hero');
-    expect(screen.queryByRole('log')).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /show text chat/i }));
-    expect(await screen.findByRole('log')).toBeInTheDocument();
     expect(container.querySelector('[data-orb-state]')).not.toBeInTheDocument();
+    expect(await screen.findByRole('log')).toBeInTheDocument();
+    expect(screen.getByText('hello')).toBeInTheDocument();
   });
 
   it('anchors one subtle announced status to the orb instead of rendering a second visual hero', async () => {
@@ -256,7 +301,6 @@ describe('VoiceConsole', () => {
     await waitFor(() => expect(created).toHaveLength(1));
     await user.type(await screen.findByRole('textbox', { name: /message/i }), 'keep this{Enter}');
 
-    await user.click(screen.getByRole('button', { name: /show text chat/i }));
     expect(container.querySelector('main')).toHaveAttribute('data-view', 'text');
     expect(
       screen.queryByRole('button', { name: /retry|new conversation/i }),
