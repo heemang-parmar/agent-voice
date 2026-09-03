@@ -189,6 +189,14 @@ Read [`SECURITY.md`](SECURITY.md) for the full threat model, and
 - [`SECURITY.md`](SECURITY.md) — vulnerability reporting and the full threat model
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — workflow, TDD requirement, style
 
+## Acknowledgements
+
+The web console's animated agent orb is rendered by
+[`thinking-orbs`](https://github.com/Jakubantalik/thinking-orbs) by Jakub
+Antalik, used under the MIT License. The rest of the interface — layout,
+status vocabulary, and the mapping from session status to orb animation — is
+this project's own.
+
 ## License
 
 [Apache License 2.0](LICENSE).

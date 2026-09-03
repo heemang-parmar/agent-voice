@@ -1,5 +1,9 @@
 import type { SessionStatus } from '@/lib/client/session-state';
 
+import { EndIcon, MicIcon, MicOffIcon, TranscriptIcon, VoiceModeIcon } from './icons';
+
+export type ConversationView = 'voice' | 'text';
+
 export interface ControlBarProps {
   micEnabled: boolean;
   audioBlocked: boolean;
@@ -8,6 +12,8 @@ export interface ControlBarProps {
   onEnd: () => void;
   onRetry: () => void;
   onResumeAudio: () => void;
+  viewMode: ConversationView;
+  onViewModeChange: (view: ConversationView) => void;
 }
 
 export function ControlBar({
@@ -18,6 +24,8 @@ export function ControlBar({
   onEnd,
   onRetry,
   onResumeAudio,
+  viewMode,
+  onViewModeChange,
 }: ControlBarProps) {
   const canRetry = status === 'error' || status === 'ended';
 
@@ -26,22 +34,55 @@ export function ControlBar({
       {audioBlocked ? (
         <div className="control-bar__audio-banner" role="status">
           <span>Audio playback is blocked by the browser.</span>
-          <button type="button" className="button button--secondary" onClick={onResumeAudio}>
+          <button type="button" className="button button--quiet" onClick={onResumeAudio}>
             Tap to enable audio
           </button>
         </div>
       ) : null}
       <div className="control-bar__buttons">
+        {viewMode === 'voice' ? (
+          <>
+            <button
+              type="button"
+              className="mode-button"
+              aria-label="Show text chat"
+              title="Show text chat"
+              onClick={() => onViewModeChange('text')}
+            >
+              <TranscriptIcon />
+              <span>Text</span>
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-pressed={!micEnabled}
+              aria-label={micEnabled ? 'Mute' : 'Unmute'}
+              title={micEnabled ? 'Mute the microphone' : 'Unmute the microphone'}
+              onClick={() => onToggleMic(!micEnabled)}
+            >
+              {micEnabled ? <MicIcon /> : <MicOffIcon />}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="mode-button mode-button--voice"
+            aria-label="Enter voice mode"
+            title="Enter voice mode"
+            onClick={() => onViewModeChange('voice')}
+          >
+            <VoiceModeIcon />
+            <span>Voice</span>
+          </button>
+        )}
         <button
           type="button"
-          className="button button--secondary"
-          aria-pressed={!micEnabled}
-          onClick={() => onToggleMic(!micEnabled)}
+          className="icon-button icon-button--danger"
+          aria-label="End"
+          title="End the session"
+          onClick={onEnd}
         >
-          {micEnabled ? 'Mute' : 'Unmute'}
-        </button>
-        <button type="button" className="button button--secondary" onClick={onEnd}>
-          End
+          <EndIcon />
         </button>
         {canRetry ? (
           <button type="button" className="button button--primary" onClick={onRetry}>

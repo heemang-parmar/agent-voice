@@ -49,6 +49,41 @@ def test_forwards_interim_and_final_user_transcripts_with_stable_segment_id() ->
     assert events[1].text == "hello world"
 
 
+def test_groups_provider_transcript_updates_without_item_ids_into_one_turn() -> None:
+    events: list[AgentVoiceEvent] = []
+    session = FakeSession()
+    wire_session_events(cast(AgentSession[Any], session), runtime_with(events))
+    forward = session.handlers["user_input_transcribed"]
+
+    forward(UserInputTranscribedEvent(transcript="Who I", is_final=False, item_id=None))
+    forward(UserInputTranscribedEvent(transcript="Who are you?", is_final=False, item_id=None))
+    forward(UserInputTranscribedEvent(transcript="Who are you?", is_final=True, item_id=None))
+    forward(UserInputTranscribedEvent(transcript="Hello again", is_final=True, item_id=None))
+
+    user_events = [
+        event for event in events if isinstance(event, (UserTranscriptPartial, UserTranscriptFinal))
+    ]
+    assert len(user_events) == 4
+    first_turn_ids = {event.segmentId for event in user_events[:3]}
+    assert len(first_turn_ids) == 1
+    assert user_events[3].segmentId not in first_turn_ids
+
+
+def test_keeps_the_active_segment_when_provider_item_id_disappears() -> None:
+    events: list[AgentVoiceEvent] = []
+    session = FakeSession()
+    wire_session_events(cast(AgentSession[Any], session), runtime_with(events))
+    forward = session.handlers["user_input_transcribed"]
+
+    forward(UserInputTranscribedEvent(transcript="Hello", is_final=False, item_id="provider_1"))
+    forward(UserInputTranscribedEvent(transcript="Hello there", is_final=True, item_id=None))
+
+    user_events = [
+        event for event in events if isinstance(event, (UserTranscriptPartial, UserTranscriptFinal))
+    ]
+    assert [event.segmentId for event in user_events] == ["provider_1", "provider_1"]
+
+
 def test_forwards_assistant_conversation_items_as_final_messages_only() -> None:
     events: list[AgentVoiceEvent] = []
     runtime = runtime_with(events)

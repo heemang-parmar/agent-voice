@@ -17,6 +17,8 @@ describe('ControlBar', () => {
         onEnd={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
       />,
     );
     const button = screen.getByRole('button', { name: /mute/i });
@@ -36,6 +38,8 @@ describe('ControlBar', () => {
         onEnd={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
       />,
     );
     await user.click(screen.getByRole('button', { name: /unmute/i }));
@@ -54,6 +58,8 @@ describe('ControlBar', () => {
         onEnd={onEnd}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
       />,
     );
     await user.click(screen.getByRole('button', { name: /^end$/i }));
@@ -72,6 +78,8 @@ describe('ControlBar', () => {
         onEnd={vi.fn()}
         onRetry={onRetry}
         onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
       />,
     );
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
@@ -85,6 +93,8 @@ describe('ControlBar', () => {
         onEnd={vi.fn()}
         onRetry={onRetry}
         onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
       />,
     );
     await user.click(screen.getByRole('button', { name: /retry/i }));
@@ -103,12 +113,68 @@ describe('ControlBar', () => {
         onEnd={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={onResumeAudio}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
       />,
     );
     await user.click(
       screen.getByRole('button', { name: /enable audio|resume audio|tap to hear/i }),
     );
     expect(onResumeAudio).toHaveBeenCalled();
+  });
+
+  it('labels its icon-only controls and reflects the muted state with aria-pressed', () => {
+    const { rerender } = render(
+      <ControlBar
+        micEnabled
+        audioBlocked={false}
+        status="listening"
+        onToggleMic={vi.fn()}
+        onEnd={vi.fn()}
+        onRetry={vi.fn()}
+        onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Mute' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'End' })).toBeInTheDocument();
+
+    rerender(
+      <ControlBar
+        micEnabled={false}
+        audioBlocked={false}
+        status="listening"
+        onToggleMic={vi.fn()}
+        onEnd={vi.fn()}
+        onRetry={vi.fn()}
+        onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Unmute' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps its decorative glyphs out of the accessibility tree', () => {
+    const { container } = render(
+      <ControlBar
+        micEnabled
+        audioBlocked={false}
+        status="listening"
+        onToggleMic={vi.fn()}
+        onEnd={vi.fn()}
+        onRetry={vi.fn()}
+        onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
+      />,
+    );
+    const glyphs = container.querySelectorAll('svg');
+    expect(glyphs.length).toBeGreaterThan(0);
+    for (const glyph of glyphs) {
+      expect(glyph).toHaveAttribute('aria-hidden', 'true');
+    }
   });
 
   it('every control is a real, keyboard-focusable button', () => {
@@ -121,6 +187,8 @@ describe('ControlBar', () => {
         onEnd={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
       />,
     );
     for (const button of screen.getAllByRole('button')) {

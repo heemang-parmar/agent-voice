@@ -134,12 +134,14 @@ def build_agent(runtime: ConversationRuntime, *, enable_delegation: bool) -> Age
 def forward_user_transcript(
     runtime: ConversationRuntime,
     event: UserInputTranscribedEvent,
+    *,
+    segment_id: str | None = None,
 ) -> None:
     text = event.transcript.strip()
     if not text:
         return
     runtime.emit_user_transcript(
-        segment_id=event.item_id or f"segment_{default_new_id()}",
+        segment_id=segment_id or event.item_id or f"segment_{default_new_id()}",
         text=text,
         is_final=event.is_final,
     )
@@ -159,10 +161,15 @@ def forward_conversation_item(
 
 
 def wire_session_events(session: AgentSession[Any], runtime: ConversationRuntime) -> None:
-    session.on(
-        "user_input_transcribed",
-        lambda event: forward_user_transcript(runtime, event),
-    )
+    active_segment_id: str | None = None
+
+    def on_user_input(event: UserInputTranscribedEvent) -> None:
+        nonlocal active_segment_id
+        segment_id = active_segment_id or event.item_id or f"segment_{default_new_id()}"
+        forward_user_transcript(runtime, event, segment_id=segment_id)
+        active_segment_id = None if event.is_final else segment_id
+
+    session.on("user_input_transcribed", on_user_input)
     session.on(
         "conversation_item_added",
         lambda event: forward_conversation_item(runtime, event),

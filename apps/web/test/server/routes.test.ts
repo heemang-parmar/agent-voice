@@ -53,6 +53,9 @@ describe('GET /api/health', () => {
     vi.stubEnv('LIVEKIT_URL', 'wss://livekit.example.test');
     vi.stubEnv('LIVEKIT_API_KEY', 'health-test-key');
     vi.stubEnv('LIVEKIT_API_SECRET', 'health-test-secret');
+    vi.stubEnv('AGENT_VOICE_AGENT_NAME', 'health-test-agent');
+    vi.stubEnv('AGENT_VOICE_ALLOWED_ORIGINS', 'http://localhost:3000');
+    vi.stubEnv('AGENT_VOICE_TOKEN_TTL_SECONDS', '600');
     const response = await health();
     const body = JSON.stringify(await response.json());
     expect(body).toBe(JSON.stringify({ status: 'ok', configured: true }));

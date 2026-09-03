@@ -4,6 +4,11 @@ export interface TranscriptViewProps {
   entries: TranscriptEntry[];
 }
 
+/**
+ * Plain, selectable text rather than chat bubbles: the transcript is a record
+ * of what was said, and a turn that is still being transcribed says so both
+ * visually and to assistive tech.
+ */
 export function TranscriptView({ entries }: TranscriptViewProps) {
   if (entries.length === 0) {
     return (
@@ -24,7 +29,12 @@ export function TranscriptView({ entries }: TranscriptViewProps) {
         >
           <span className="transcript__speaker">{entry.role === 'user' ? 'You' : 'Agent'}</span>
           <span className="transcript__text">{entry.text}</span>
-          {!entry.final ? <span className="transcript__partial-tag">…</span> : null}
+          {!entry.final ? (
+            <span className="transcript__partial-tag">
+              <span aria-hidden="true">…</span>
+              <span className="sr-only">still being transcribed</span>
+            </span>
+          ) : null}
         </li>
       ))}
     </ol>

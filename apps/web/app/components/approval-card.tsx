@@ -20,6 +20,7 @@ export function ApprovalCard({ approval, onRespond }: ApprovalCardProps) {
       data-action-id={approval.actionId}
       data-approval-id={approval.approvalId}
     >
+      <p className="approval-card__eyebrow">Approval needed</p>
       <h3 className="approval-card__title">{approval.title}</h3>
       <p className="approval-card__prompt">{approval.prompt}</p>
       <div className="approval-card__actions">

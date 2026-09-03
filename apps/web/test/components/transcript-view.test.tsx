@@ -54,6 +54,17 @@ describe('TranscriptView', () => {
     expect(partial).toHaveAttribute('data-final', 'false');
   });
 
+  it('tells assistive tech that a partial turn is still being transcribed', () => {
+    render(<TranscriptView entries={entries} />);
+    expect(screen.getByText(/still being transcribed/i)).toBeInTheDocument();
+  });
+
+  it('renders transcript text as plain selectable text, not as controls', () => {
+    render(<TranscriptView entries={entries} />);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getByText('Hello there').tagName).toBe('SPAN');
+  });
+
   it('shows an honest empty state before any turn has happened', () => {
     render(<TranscriptView entries={[]} />);
     expect(screen.getByText(/no messages yet/i)).toBeInTheDocument();

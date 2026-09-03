@@ -33,9 +33,33 @@ describe('TextComposer', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it('keeps Send quiet and disabled until the draft contains actual text', async () => {
+    const onSend = vi.fn();
+    const user = userEvent.setup();
+    render(<TextComposer disabled={false} onSend={onSend} />);
+    const input = screen.getByRole('textbox', { name: /message/i });
+    const send = screen.getByRole('button', { name: /send/i });
+
+    expect(send).toBeDisabled();
+    await user.type(input, '   ');
+    expect(send).toBeDisabled();
+    await user.type(input, 'hello');
+    expect(send).toBeEnabled();
+    await user.click(send);
+    expect(onSend).toHaveBeenCalledOnce();
+    expect(send).toBeDisabled();
+  });
+
   it('disables input and send while not connected', () => {
     render(<TextComposer disabled onSend={vi.fn()} />);
     expect(screen.getByRole('textbox', { name: /message/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /send/i })).toBeDisabled();
+  });
+
+  it('keeps a real label on the icon-only send button', () => {
+    const { container } = render(<TextComposer disabled={false} onSend={vi.fn()} />);
+    const send = screen.getByRole('button', { name: 'Send' });
+    expect(send).toHaveAttribute('type', 'submit');
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
   });
 });

@@ -45,4 +45,28 @@ describe('StartScreen', () => {
     expect(screen.getByText(/LIVEKIT_API_KEY/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /start voice/i })).not.toBeInTheDocument();
   });
+
+  it('leads with the resting orb so the start screen is the same surface as the session', () => {
+    const { container } = render(<StartScreen onStart={vi.fn()} missingConfig={[]} />);
+    expect(container.querySelector('[data-orb-state]')).toHaveAttribute(
+      'data-orb-state',
+      'breathing',
+    );
+  });
+
+  it('keeps the orb present but visibly unsettled when the deployment is unconfigured', () => {
+    const { container } = render(<StartScreen onStart={vi.fn()} missingConfig={['LIVEKIT_URL']} />);
+    expect(container.querySelector('[data-orb-state]')).toHaveAttribute(
+      'data-orb-state',
+      'shaping',
+    );
+  });
+
+  it('offers voice first and text second in DOM order, so tab order matches the hierarchy', () => {
+    render(<StartScreen onStart={vi.fn()} missingConfig={[]} />);
+    const buttons = screen.getAllByRole('button');
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]).toHaveAccessibleName(/start voice/i);
+    expect(buttons[1]).toHaveAccessibleName(/type instead/i);
+  });
 });
