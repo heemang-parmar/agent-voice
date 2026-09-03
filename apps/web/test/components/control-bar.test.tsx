@@ -122,7 +122,7 @@ describe('ControlBar', () => {
   it('surfaces a resumable audio-blocked banner from a user gesture', async () => {
     const onResumeAudio = vi.fn();
     const user = userEvent.setup();
-    render(
+    const { container } = render(
       <ControlBar
         micEnabled
         audioBlocked
@@ -135,6 +135,7 @@ describe('ControlBar', () => {
         onViewModeChange={vi.fn()}
       />,
     );
+    expect(container.firstElementChild).toHaveClass('control-bar--audio-blocked');
     await user.click(
       screen.getByRole('button', { name: /enable audio|resume audio|tap to hear/i }),
     );

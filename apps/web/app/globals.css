@@ -675,6 +675,8 @@ input {
   flex-direction: column;
   gap: var(--space-2);
   flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .control-bar__buttons {
@@ -693,6 +695,13 @@ input {
   background: var(--color-surface);
   font-size: 0.875rem;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.control-bar__audio-banner > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* --------------------------------------------------------------- Buttons */
@@ -956,6 +965,11 @@ input {
 
   .stage[data-view='text'] .control-bar {
     flex: 0 0 auto;
+  }
+
+  .stage[data-view='text'] .control-bar--audio-blocked {
+    flex: 1 1 100%;
+    width: 100%;
   }
 
   .stage__text-heading {

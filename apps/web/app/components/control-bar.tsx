@@ -42,7 +42,7 @@ export function ControlBar({
   }
 
   return (
-    <div className="control-bar">
+    <div className={`control-bar${audioBlocked ? ' control-bar--audio-blocked' : ''}`}>
       {audioBlocked ? (
         <div className="control-bar__audio-banner" role="status">
           <span>Audio playback is blocked by the browser.</span>
