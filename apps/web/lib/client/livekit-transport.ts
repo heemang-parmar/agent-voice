@@ -1,4 +1,12 @@
-import { TOPICS, encodeCommand, parseEvent, type AgentVoiceCommand } from '@agent-voice/protocol';
+import {
+  LIMITS,
+  PROTOCOL_VERSION,
+  TOPICS,
+  encodeCommand,
+  parseEvent,
+  type AgentVoiceCommand,
+  type AgentVoiceEvent,
+} from '@agent-voice/protocol';
 import {
   DisconnectReason,
   Room,
@@ -10,10 +18,11 @@ import {
   type RemoteTrack,
   type RemoteTrackPublication,
   type RoomEventCallbacks,
+  type TranscriptionSegment,
 } from 'livekit-client';
 
 import { fetchConnectionDetails, type ConnectionDetails } from './connection-details-client';
-import type { AgentActivity, SessionMode } from './session-state';
+import { AGENT_CAPTION_ID_PREFIX, type AgentActivity, type SessionMode } from './session-state';
 import {
   TransportError,
   throwIfAborted,
@@ -29,6 +38,7 @@ export const CHAT_TOPIC = 'lk.chat';
 const ACTIVITIES = new Set<AgentActivity>(['initializing', 'listening', 'thinking', 'speaking']);
 const MIC_DENIED = 'Microphone permission was not granted. You can keep typing.';
 const MIC_LOST = 'The microphone stopped working. You can keep typing.';
+const CAPTION_EVENT_ID_PREFIX = 'caption_event:';
 
 export interface LiveKitTransportOptions {
   createRoom?: () => Room;
@@ -66,6 +76,11 @@ function isPermissionError(error: unknown): boolean {
   );
 }
 
+function safeCaptionSegmentId(segmentId: string): string {
+  const safe = segmentId.replace(/[^A-Za-z0-9_.:-]/gu, '_').slice(0, 28);
+  return safe || 'segment';
+}
+
 /**
  * The real transport: one LiveKit room per session. Protocol events are only
  * accepted from agent participants on the events topic; commands go out as
@@ -81,6 +96,8 @@ export function createLiveKitTransport(
   const fetchDetails = options.fetchDetails ?? fetchConnectionDetails;
 
   let room: Room | null = null;
+  let conversationId: string | null = null;
+  let captionEventSequence = 0;
   let live = false;
   let closed = false;
   const audioElements = new Map<RemoteTrack, HTMLMediaElement[]>();
@@ -143,6 +160,30 @@ export function createLiveKitTransport(
     callbacks.onEvent(parsed.value);
   };
 
+  const handleTranscription = (
+    segments: TranscriptionSegment[],
+    participant?: Participant,
+  ): void => {
+    if (!participant?.isAgent || conversationId === null) return;
+
+    for (const segment of segments) {
+      const text = segment.text.trim().slice(0, LIMITS.maxTextChars);
+      if (!text) continue;
+      const segmentId = safeCaptionSegmentId(segment.id);
+      captionEventSequence += 1;
+      const event: AgentVoiceEvent = {
+        v: PROTOCOL_VERSION,
+        type: segment.final ? 'agent.message.final' : 'agent.message.partial',
+        id: `${CAPTION_EVENT_ID_PREFIX}${segmentId}:${String(captionEventSequence)}`,
+        ts: new Date().toISOString(),
+        conversationId,
+        messageId: `${AGENT_CAPTION_ID_PREFIX}${segmentId}`,
+        text,
+      };
+      callbacks.onEvent(event);
+    }
+  };
+
   const announceAgent = (participant: Participant): void => {
     callbacks.onAgentPresence(true);
     const activity = activityOf(participant);
@@ -151,6 +192,7 @@ export function createLiveKitTransport(
 
   const wire = (target: Room): void => {
     listen(target, RoomEvent.DataReceived, guard(handleData));
+    listen(target, RoomEvent.TranscriptionReceived, guard(handleTranscription));
     listen(
       target,
       RoomEvent.ParticipantConnected,
@@ -246,6 +288,7 @@ export function createLiveKitTransport(
       if (closed) throw new TransportError('aborted', 'This session was already closed.');
       throwIfAborted(signal);
       const details = await fetchDetails(signal);
+      conversationId = details.roomName;
       throwIfAborted(signal);
 
       const target = createRoom();

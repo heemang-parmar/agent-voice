@@ -4,6 +4,8 @@ import { eventFixtures, scenarios } from '@agent-voice/protocol/fixtures';
 import { describe, expect, it } from 'vitest';
 
 import {
+  AGENT_CAPTION_ID_PREFIX,
+  MAX_AGENT_TURNS,
   MAX_TRANSCRIPT_ENTRIES,
   deriveStatus,
   initialSessionState,
@@ -177,6 +179,163 @@ describe('sessionReducer: transcript', () => {
     const state = run(events(many), run(connectedVoice));
     expect(state.transcript).toHaveLength(MAX_TRANSCRIPT_ENTRIES);
     expect(state.transcript[0]?.text).toBe('line 5');
+  });
+});
+
+describe('sessionReducer: TTS-aligned agent captions', () => {
+  /** What the transport synthesises from a LiveKit agent transcription segment. */
+  function caption(segmentId: string, text: string, final = false): AgentVoiceEvent {
+    const base = final ? fixture('agent.message.final') : fixture('agent.message.partial');
+    return { ...base, messageId: `${AGENT_CAPTION_ID_PREFIX}${segmentId}`, text };
+  }
+
+  /** What the worker emits from `conversation_item_added`, with its own id. */
+  function workerFinal(messageId: string, text: string): AgentVoiceEvent {
+    return { ...fixture('agent.message.final'), messageId, text };
+  }
+
+  const live = run(connectedVoice);
+
+  it('grows one entry as the spoken caption arrives, under a single message id', () => {
+    const state = run(
+      events([
+        caption('SG_1', 'Let me'),
+        caption('SG_1', 'Let me check'),
+        caption('SG_1', 'Let me check that'),
+      ]),
+      live,
+    );
+    expect(state.transcript).toHaveLength(1);
+    expect(state.transcript[0]).toMatchObject({
+      role: 'agent',
+      text: 'Let me check that',
+      final: false,
+    });
+  });
+
+  it('finalises the caption entry in place when the spoken turn completes', () => {
+    const state = run(
+      events([caption('SG_1', 'Let me check'), caption('SG_1', 'Let me check that.', true)]),
+      live,
+    );
+    expect(state.transcript).toHaveLength(1);
+    expect(state.transcript[0]).toMatchObject({ text: 'Let me check that.', final: true });
+  });
+
+  it('reconciles the worker final into the same turn instead of adding a second entry', () => {
+    const state = run(
+      events([
+        caption('SG_1', 'Let me check'),
+        caption('SG_1', 'Let me check that.', true),
+        workerFinal('item_1', 'Let me check that.'),
+      ]),
+      live,
+    );
+    expect(state.transcript).toHaveLength(1);
+    expect(state.transcript[0]).toMatchObject({ text: 'Let me check that.', final: true });
+    expect(state.droppedEvents).toBe(0);
+  });
+
+  it('finalises in place when the worker final races ahead of the caption final', () => {
+    const racing = run(
+      events([caption('SG_1', 'Let me check'), workerFinal('item_1', 'Let me check that.')]),
+      live,
+    );
+    expect(racing.transcript).toHaveLength(1);
+    // Committed by the LLM, but still actively playing and therefore partial.
+    expect(racing.transcript[0]).toMatchObject({ text: 'Let me check', final: false });
+
+    const settled = run(events([caption('SG_1', 'Let me check that.', true)]), racing);
+    expect(settled.transcript).toHaveLength(1);
+    expect(settled.transcript[0]).toMatchObject({ text: 'Let me check that.', final: true });
+  });
+
+  it('keeps what was actually spoken when the turn is interrupted', () => {
+    const state = run(
+      events([
+        caption('SG_1', 'Sure, the nightly'),
+        caption('SG_1', 'Sure, the nightly build', true),
+        workerFinal('item_1', 'Sure, the nightly build finished an hour ago with two failures.'),
+      ]),
+      live,
+    );
+    expect(state.transcript).toHaveLength(1);
+    expect(state.transcript[0]).toMatchObject({ text: 'Sure, the nightly build', final: true });
+  });
+
+  it('ignores a repeated worker final for a turn it already reconciled', () => {
+    const state = run(
+      events([
+        caption('SG_1', 'Done.', true),
+        workerFinal('item_1', 'Done.'),
+        workerFinal('item_1', 'Done.'),
+      ]),
+      live,
+    );
+    expect(state.transcript).toHaveLength(1);
+  });
+
+  it('keeps identical replies in different turns as separate entries', () => {
+    const state = run(
+      events([
+        caption('SG_1', 'Sure.', true),
+        workerFinal('item_1', 'Sure.'),
+        caption('SG_2', 'Sure.', true),
+        workerFinal('item_2', 'Sure.'),
+      ]),
+      live,
+    );
+    expect(state.transcript).toHaveLength(2);
+    expect(state.transcript.every((entry) => entry.final && entry.text === 'Sure.')).toBe(true);
+  });
+
+  it('matches worker finals to caption turns in order, not to whichever turn is newest', () => {
+    const state = run(
+      events([
+        caption('SG_1', 'First reply.', true),
+        caption('SG_2', 'Second reply.', true),
+        workerFinal('item_1', 'First reply.'),
+        workerFinal('item_2', 'Second reply.'),
+      ]),
+      live,
+    );
+    expect(state.transcript.map((entry) => entry.text)).toEqual(['First reply.', 'Second reply.']);
+  });
+
+  it('still records a worker final that never had captions', () => {
+    const state = run(events([workerFinal('item_1', 'No audio for this one.')]), live);
+    expect(state.transcript).toHaveLength(1);
+    expect(state.transcript[0]).toMatchObject({ text: 'No audio for this one.', final: true });
+  });
+
+  it('lets a late first caption take over a worker-first turn without duplicating it', () => {
+    const committed = run(events([workerFinal('item_1', 'The full generated answer.')]), live);
+    expect(committed.transcript).toHaveLength(1);
+    expect(committed.transcript[0]).toMatchObject({
+      text: 'The full generated answer.',
+      final: true,
+    });
+
+    const speaking = run(events([caption('SG_1', 'The full')]), committed);
+    expect(speaking.transcript).toHaveLength(1);
+    expect(speaking.transcript[0]).toMatchObject({ text: 'The full', final: false });
+
+    const settled = run(events([caption('SG_1', 'The full generated answer.', true)]), speaking);
+    expect(settled.transcript).toHaveLength(1);
+    expect(settled.transcript[0]).toMatchObject({
+      text: 'The full generated answer.',
+      final: true,
+    });
+  });
+
+  it('bounds the turn-reconciliation table', () => {
+    const many = Array.from({ length: MAX_AGENT_TURNS + 4 }, (_, i) => [
+      caption(`SG_${String(i)}`, `reply ${String(i)}`, true),
+      workerFinal(`item_${String(i)}`, `reply ${String(i)}`),
+    ]).flat();
+    const state = run(events(many), live);
+    expect(state.agentTurns.length).toBeLessThanOrEqual(MAX_AGENT_TURNS);
+    expect(state.transcript).toHaveLength(MAX_AGENT_TURNS + 4);
   });
 });
 

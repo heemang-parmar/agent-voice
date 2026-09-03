@@ -34,6 +34,30 @@ export interface TranscriptEntry {
   ts: string;
 }
 
+/**
+ * Prefix the transport stamps on message ids it synthesises from LiveKit's
+ * TTS-aligned agent transcription. It is what tells a live caption apart from
+ * the worker's own `agent.message.final`, which carries the LLM chat item id:
+ * the two describe the same turn but can never share an id.
+ */
+export const AGENT_CAPTION_ID_PREFIX = 'caption:';
+
+export function isAgentCaptionId(messageId: string): boolean {
+  return messageId.startsWith(AGENT_CAPTION_ID_PREFIX);
+}
+
+/**
+ * One agent turn, seen from up to two sources. `entryId` is decided by
+ * whichever source opened the turn, so both write to the same transcript row.
+ */
+export interface AgentTurnLink {
+  entryId: string;
+  /** Caption segment id, once captions have been seen for this turn. */
+  captionId: string | null;
+  /** Worker message id, once a worker final has been matched to this turn. */
+  workerId: string | null;
+}
+
 export type ActionStatus = 'running' | 'awaiting-approval' | 'verified' | 'failed';
 
 export interface ActionProgress {
@@ -85,6 +109,8 @@ export interface SessionState {
   audioBlocked: boolean;
   conversationId: string | null;
   transcript: TranscriptEntry[];
+  /** Bounded caption/worker pairing for recent agent turns; never rendered. */
+  agentTurns: AgentTurnLink[];
   actions: ActionRecord[];
   pendingApproval: PendingApproval | null;
   error: SessionError | null;
@@ -119,6 +145,8 @@ export type SessionAction =
   | { type: 'reset' };
 
 export const MAX_TRANSCRIPT_ENTRIES = 200;
+/** Only the last few agent turns can still be waiting for their second source. */
+export const MAX_AGENT_TURNS = 8;
 export const MAX_ACTIONS = 50;
 export const MAX_PROGRESS_ENTRIES = 20;
 /** Same ceiling as the protocol's per-event artifact list. */
@@ -134,6 +162,7 @@ export const initialSessionState: SessionState = {
   audioBlocked: false,
   conversationId: null,
   transcript: [],
+  agentTurns: [],
   actions: [],
   pendingApproval: null,
   error: null,
@@ -188,6 +217,115 @@ function upsertTranscript(state: SessionState, entry: TranscriptEntry): SessionS
       ? bounded([...state.transcript, entry], MAX_TRANSCRIPT_ENTRIES)
       : state.transcript.map((existing, i) => (i === index ? entry : existing));
   return { ...state, transcript };
+}
+
+interface ResolvedAgentTurn {
+  turns: AgentTurnLink[];
+  entryId: string;
+  /** False when the turn already has spoken text that must not be overwritten. */
+  useText: boolean;
+  source: 'caption' | 'worker';
+  /** Whether this caption id was already attached before the current event. */
+  captionWasKnown: boolean;
+  hasCaption: boolean;
+}
+
+/**
+ * Decides which transcript row an agent message belongs to.
+ *
+ * A spoken turn is described twice: live captions aligned to the audio, and
+ * the worker's `agent.message.final` carrying the committed LLM message. They
+ * use different ids, so they are paired by turn order instead: a worker final
+ * claims the oldest caption turn that has not been claimed yet. That keeps a
+ * late worker final from attaching itself to a newer turn, and it never
+ * compares text, so two identical replies stay two turns.
+ *
+ * Captions win on text: once a turn has been spoken, the worker's version is
+ * only allowed to finalise it, never to reveal words that were not said.
+ */
+function resolveAgentTurn(turns: AgentTurnLink[], messageId: string): ResolvedAgentTurn {
+  if (isAgentCaptionId(messageId)) {
+    const open = turns.find((turn) => turn.captionId === messageId);
+    if (open) {
+      return {
+        turns,
+        entryId: open.entryId,
+        useText: true,
+        source: 'caption',
+        captionWasKnown: true,
+        hasCaption: true,
+      };
+    }
+
+    // Reliable worker data and transcription packets travel independently. A
+    // very short reply can therefore commit before its first caption arrives.
+    const awaitingCaption = turns.find((turn) => turn.captionId === null && turn.workerId !== null);
+    if (awaitingCaption) {
+      return {
+        turns: turns.map((turn) =>
+          turn === awaitingCaption ? { ...turn, captionId: messageId } : turn,
+        ),
+        entryId: awaitingCaption.entryId,
+        useText: true,
+        source: 'caption',
+        captionWasKnown: false,
+        hasCaption: true,
+      };
+    }
+
+    const started: AgentTurnLink = {
+      entryId: `agent:${messageId}`,
+      captionId: messageId,
+      workerId: null,
+    };
+    return {
+      turns: bounded([...turns, started], MAX_AGENT_TURNS),
+      entryId: started.entryId,
+      useText: true,
+      source: 'caption',
+      captionWasKnown: false,
+      hasCaption: true,
+    };
+  }
+
+  const linked = turns.find((turn) => turn.workerId === messageId);
+  if (linked) {
+    return {
+      turns,
+      entryId: linked.entryId,
+      useText: linked.captionId === null,
+      source: 'worker',
+      captionWasKnown: linked.captionId !== null,
+      hasCaption: linked.captionId !== null,
+    };
+  }
+
+  // Only caption turns can still be unclaimed; worker turns are born claimed.
+  const unclaimed = turns.find((turn) => turn.workerId === null);
+  if (unclaimed) {
+    return {
+      turns: turns.map((turn) => (turn === unclaimed ? { ...turn, workerId: messageId } : turn)),
+      entryId: unclaimed.entryId,
+      useText: false,
+      source: 'worker',
+      captionWasKnown: true,
+      hasCaption: true,
+    };
+  }
+
+  const started: AgentTurnLink = {
+    entryId: `agent:${messageId}`,
+    captionId: null,
+    workerId: messageId,
+  };
+  return {
+    turns: bounded([...turns, started], MAX_AGENT_TURNS),
+    entryId: started.entryId,
+    useText: true,
+    source: 'worker',
+    captionWasKnown: false,
+    hasCaption: false,
+  };
 }
 
 function updateAction(
@@ -254,14 +392,27 @@ function applyEvent(state: SessionState, event: AgentVoiceEvent): SessionState {
       });
 
     case 'agent.message.partial':
-    case 'agent.message.final':
-      return upsertTranscript(bound, {
-        id: `agent:${event.messageId}`,
+    case 'agent.message.final': {
+      const turn = resolveAgentTurn(bound.agentTurns, event.messageId);
+      const updated = { ...bound, agentTurns: turn.turns };
+      const shown = updated.transcript.find((entry) => entry.id === turn.entryId);
+      const final =
+        turn.source === 'caption'
+          ? event.type === 'agent.message.final' ||
+            (turn.captionWasKnown && (shown?.final ?? false))
+          : turn.hasCaption
+            ? (shown?.final ?? false)
+            : event.type === 'agent.message.final';
+      return upsertTranscript(updated, {
+        id: turn.entryId,
         role: 'agent',
-        text: event.text,
-        final: event.type === 'agent.message.final',
+        text: turn.useText ? event.text : (shown?.text ?? event.text),
+        // Once captions exist, only their final packet can close the spoken
+        // turn. A worker final may arrive while audio is still playing.
+        final,
         ts: event.ts,
       });
+    }
 
     case 'action.started': {
       if (bound.actions.some((action) => action.actionId === event.actionId)) return dropped(bound);

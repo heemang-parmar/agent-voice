@@ -1,4 +1,5 @@
 import { TOPICS, encodeEvent, parseCommand, type AgentVoiceCommand } from '@agent-voice/protocol';
+import type { AgentVoiceEvent } from '@agent-voice/protocol';
 import { eventFixtures } from '@agent-voice/protocol/fixtures';
 import {
   DisconnectReason,
@@ -7,6 +8,7 @@ import {
   type RemoteParticipant,
   type RemoteTrack,
   type Room,
+  type TranscriptionSegment,
 } from 'livekit-client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -37,6 +39,9 @@ class FakeRoom {
   texts: { text: string; options: unknown }[] = [];
   connectImpl: () => Promise<void> = () => Promise.resolve();
   micImpl: (enabled: boolean) => Promise<void> = () => Promise.resolve();
+  /** Captures the last (segments, participant, publication) args to RoomEvent.TranscriptionReceived. */
+  lastTranscriptionArgs: [TranscriptionSegment[], RemoteParticipant | undefined, unknown] | null =
+    null;
   localParticipant = {
     setMicrophoneEnabled: (enabled: boolean) => {
       this.micCalls.push(enabled);
@@ -63,6 +68,13 @@ class FakeRoom {
     return this;
   }
   emit(event: string, ...args: unknown[]): void {
+    if (event === RoomEvent.TranscriptionReceived) {
+      this.lastTranscriptionArgs = args as [
+        TranscriptionSegment[],
+        RemoteParticipant | undefined,
+        unknown,
+      ];
+    }
     for (const listener of this.listeners.get(event) ?? [])
       (listener as (...a: unknown[]) => void)(...args);
   }
@@ -111,11 +123,15 @@ function audioTrack(): { track: RemoteTrack; element: HTMLAudioElement } {
 
 function recorder() {
   const calls: string[] = [];
+  const events: AgentVoiceEvent[] = [];
   const callbacks: TransportCallbacks = {
     onConnected: () => calls.push('connected'),
     onAgentPresence: (present) => calls.push(`agent:${String(present)}`),
     onActivity: (activity) => calls.push(`activity:${activity}`),
-    onEvent: (event) => calls.push(`event:${event.type}`),
+    onEvent: (event) => {
+      calls.push(`event:${event.type}`);
+      events.push(event);
+    },
     onDropped: (reason) => calls.push(`dropped:${reason}`),
     onReconnecting: () => calls.push('reconnecting'),
     onReconnected: () => calls.push('reconnected'),
@@ -125,7 +141,7 @@ function recorder() {
     onMicError: (message) => calls.push(`micError:${message ?? 'none'}`),
     onAudioBlocked: (blocked) => calls.push(`audioBlocked:${String(blocked)}`),
   };
-  return { calls, callbacks };
+  return { calls, events, callbacks };
 }
 
 function setup(
@@ -134,13 +150,13 @@ function setup(
   const room = new FakeRoom();
   const host = document.createElement('div');
   const fetchDetails = vi.fn(overrides.fetchDetails ?? (() => Promise.resolve(details)));
-  const { calls, callbacks } = recorder();
+  const { calls, events, callbacks } = recorder();
   const transport = createLiveKitTransport(callbacks, {
     createRoom: () => room as unknown as Room,
     fetchDetails,
     audioHost: host,
   });
-  return { room, host, fetchDetails, calls, transport };
+  return { room, host, fetchDetails, calls, events, transport };
 }
 
 const eventBytes = (event = eventFixtures['conversation.started']): Uint8Array =>
@@ -284,6 +300,78 @@ describe('createLiveKitTransport', () => {
       'dropped:invalid_json',
       'dropped:too_large',
     ]);
+  });
+
+  it('forwards trusted TTS-aligned agent transcription as one progressive message', async () => {
+    const { room, events, transport } = setup();
+    await transport.connect('voice', new AbortController().signal);
+    const agent = participant('agent-voice', true);
+    const segment = (text: string, final: boolean): TranscriptionSegment => ({
+      id: 'SG_live_1',
+      text,
+      language: 'en',
+      startTime: 0,
+      endTime: 0,
+      final,
+      firstReceivedTime: 1,
+      lastReceivedTime: 2,
+    });
+
+    room.emit(RoomEvent.TranscriptionReceived, [segment('Let me', false)], agent, undefined);
+    room.emit(
+      RoomEvent.TranscriptionReceived,
+      [segment('Let me explain', false)],
+      agent,
+      undefined,
+    );
+    room.emit(
+      RoomEvent.TranscriptionReceived,
+      [segment('Let me explain that.', true)],
+      agent,
+      undefined,
+    );
+
+    expect(events).toHaveLength(3);
+    expect(events.map((event) => ('messageId' in event ? event.messageId : null))).toEqual([
+      'caption:SG_live_1',
+      'caption:SG_live_1',
+      'caption:SG_live_1',
+    ]);
+    expect(events.map((event) => event.type)).toEqual([
+      'agent.message.partial',
+      'agent.message.partial',
+      'agent.message.final',
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      conversationId: 'room_x',
+      text: 'Let me explain that.',
+    });
+  });
+
+  it('ignores blank, missing-participant, and non-agent transcriptions', async () => {
+    const { room, events, transport } = setup();
+    await transport.connect('text', new AbortController().signal);
+    const segment: TranscriptionSegment = {
+      id: 'SG_untrusted',
+      text: 'not trusted',
+      language: 'en',
+      startTime: 0,
+      endTime: 0,
+      final: false,
+      firstReceivedTime: 1,
+      lastReceivedTime: 2,
+    };
+
+    room.emit(RoomEvent.TranscriptionReceived, [segment], participant('viewer', false), undefined);
+    room.emit(RoomEvent.TranscriptionReceived, [segment], undefined, undefined);
+    room.emit(
+      RoomEvent.TranscriptionReceived,
+      [{ ...segment, text: '   ' }],
+      participant('agent-voice', true),
+      undefined,
+    );
+
+    expect(events).toEqual([]);
   });
 
   it('tracks agent presence and activity from participant events and attributes', async () => {
