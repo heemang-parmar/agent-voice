@@ -14,7 +14,12 @@ interface FakeTransport extends Transport {
   disconnects: number;
 }
 
-function fakeFactory(behaviour: { connect?: (signal: AbortSignal) => Promise<void> } = {}): {
+function fakeFactory(
+  behaviour: {
+    connect?: (signal: AbortSignal) => Promise<void>;
+    setMicrophoneEnabled?: (enabled: boolean, callbacks: TransportCallbacks) => Promise<void>;
+  } = {},
+): {
   factory: TransportFactory;
   created: FakeTransport[];
 } {
@@ -41,6 +46,9 @@ function fakeFactory(behaviour: { connect?: (signal: AbortSignal) => Promise<voi
       sendText: () => Promise.resolve(),
       setMicrophoneEnabled(enabled) {
         transport.mic.push(enabled);
+        if (behaviour.setMicrophoneEnabled) {
+          return behaviour.setMicrophoneEnabled(enabled, callbacks);
+        }
         callbacks.onMic(enabled);
         return Promise.resolve();
       },
@@ -219,6 +227,36 @@ describe('VoiceConsole', () => {
     expect(input).toHaveFocus();
     expect(created).toHaveLength(1);
     expect(created[0]?.mic).toContain(false);
+  });
+
+  it('shows the microphone transition while an explicit text-mode switch is pending', async () => {
+    let finishDisablingMicrophone: (() => void) | undefined;
+    const { factory, created } = fakeFactory({
+      setMicrophoneEnabled(enabled, callbacks) {
+        if (enabled) {
+          callbacks.onMic(true);
+          return Promise.resolve();
+        }
+
+        return new Promise<void>((resolve) => {
+          finishDisablingMicrophone = () => {
+            callbacks.onMic(false);
+            resolve();
+          };
+        });
+      },
+    });
+    const user = userEvent.setup();
+    render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await user.click(await screen.findByRole('button', { name: /show text chat/i }));
+
+    expect(screen.getByRole('status')).toHaveTextContent(/switching to text/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/pausing the microphone/i);
+    expect(created[0]?.mic).toContain(false);
+
+    finishDisablingMicrophone?.();
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/^Ready/i));
   });
 
   it('shows the orb before a session starts and moves it to the live status once connected', async () => {

@@ -77,7 +77,12 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
     // This focus must remain inside the originating tap/click. Mobile Safari
     // will not open its software keyboard for the later autofocus effect.
     viewModeRef.current = view;
-    if (view === 'text') composerInput.current?.focus();
+    if (view === 'text') {
+      composerInput.current?.focus();
+    } else {
+      // Keep the software keyboard from covering the immersive voice view.
+      composerInput.current?.blur();
+    }
     setViewMode(view);
     lastMode.current = view;
     if (connected) void session.setMicrophoneEnabled(view === 'voice');
