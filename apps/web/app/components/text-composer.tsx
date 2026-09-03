@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import type { PushToTalkPhase } from '@/lib/client/use-push-to-talk';
 
-import { SendIcon } from './icons';
+import { SendIcon, VoiceModeIcon } from './icons';
 import { PushToTalkButton } from './push-to-talk-button';
 
 export interface TextComposerProps {
@@ -13,6 +13,7 @@ export interface TextComposerProps {
   autoFocus?: boolean;
   inputRef?: RefObject<HTMLInputElement | null>;
   onInteraction?: () => void;
+  onEnterVoiceMode?: () => void;
   pushToTalk?: {
     disabled: boolean;
     phase: PushToTalkPhase;
@@ -27,6 +28,7 @@ export function TextComposer({
   autoFocus = false,
   inputRef,
   onInteraction,
+  onEnterVoiceMode,
   pushToTalk,
 }: TextComposerProps) {
   const [value, setValue] = useState('');
@@ -81,6 +83,17 @@ export function TextComposer({
           title="Send message"
         >
           <SendIcon />
+        </button>
+      ) : onEnterVoiceMode ? (
+        <button
+          type="button"
+          className="icon-button icon-button--voice"
+          disabled={disabled}
+          aria-label="Enter voice mode"
+          title="Enter voice mode"
+          onClick={onEnterVoiceMode}
+        >
+          <VoiceModeIcon />
         </button>
       ) : null}
     </form>

@@ -7,7 +7,7 @@ export interface StatusBadgeProps {
   micError?: string | null;
   label?: string;
   description?: string;
-  variant?: 'default' | 'orb';
+  variant?: 'default' | 'orb' | 'compact';
   showDescription?: boolean;
 }
 
@@ -25,7 +25,7 @@ export function StatusBadge({
 }: StatusBadgeProps) {
   const info = statusInfo(status);
   const descriptionClass =
-    variant === 'orb' && !showDescription
+    (variant === 'orb' || variant === 'compact') && !showDescription
       ? 'status-badge__description sr-only'
       : 'status-badge__description';
   return (

@@ -13,7 +13,7 @@ export function TranscriptView({ entries }: TranscriptViewProps) {
   if (entries.length === 0) {
     return (
       <div className="transcript transcript--empty">
-        <p>No messages yet. Say something, or type below.</p>
+        <p>Start a conversation</p>
       </div>
     );
   }

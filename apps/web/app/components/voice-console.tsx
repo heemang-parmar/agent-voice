@@ -12,7 +12,7 @@ import { ActionTimeline } from './action-timeline';
 import { AgentOrb } from './agent-orb';
 import { ApprovalCard } from './approval-card';
 import { ControlBar, type ConversationView } from './control-bar';
-import { TranscriptIcon } from './icons';
+import { EndIcon, TranscriptIcon } from './icons';
 import { StartScreen } from './start-screen';
 import { StatusBadge } from './status-badge';
 import { TextComposer } from './text-composer';
@@ -58,6 +58,12 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
   };
   const retry = (): void => {
     void session.start(lastMode.current);
+  };
+  const endSession = (): void => {
+    void (async () => {
+      await pushToTalk.release();
+      await session.end();
+    })();
   };
 
   const awaitingConfig = session.state.phase === 'error' && session.missingConfig.length > 0;
@@ -154,21 +160,35 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
           </div>
         ) : (
           <div className="stage__text-heading">
-            <h1>Conversation</h1>
-            <StatusBadge
-              status={session.status}
-              micError={
-                textReady || switchingToText || session.status === 'ended'
-                  ? null
-                  : session.state.micError
-              }
-              {...(pushToTalkStatus ??
-                (switchingToText
-                  ? { label: 'Switching to text', description: 'Pausing the microphone…' }
-                  : textReady
-                    ? { label: 'Ready', description: 'Type a message or hold the mic to talk.' }
-                    : {}))}
-            />
+            <div className="stage__text-heading-copy">
+              <h1>Conversation</h1>
+              <StatusBadge
+                status={session.status}
+                variant="compact"
+                micError={
+                  textReady || switchingToText || session.status === 'ended'
+                    ? null
+                    : session.state.micError
+                }
+                {...(pushToTalkStatus ??
+                  (switchingToText
+                    ? { label: 'Switching to text', description: 'Pausing the microphone…' }
+                    : textReady
+                      ? { label: 'Ready', description: 'Type a message or hold the mic to talk.' }
+                      : {}))}
+              />
+            </div>
+            {session.status !== 'ended' ? (
+              <button
+                type="button"
+                className="icon-button stage__end-conversation"
+                aria-label="End conversation"
+                title="End conversation"
+                onClick={endSession}
+              >
+                <EndIcon />
+              </button>
+            ) : null}
           </div>
         )}
 
@@ -202,6 +222,7 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
               onSend={(text) => void session.sendText(text)}
               {...(viewMode === 'text'
                 ? {
+                    onEnterVoiceMode: () => changeView('voice'),
                     pushToTalk: {
                       disabled: !connected || switchingToText,
                       phase: pushToTalk.phase,
@@ -217,12 +238,7 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
             audioBlocked={session.state.audioBlocked}
             status={session.status}
             onToggleMic={(enabled) => void session.setMicrophoneEnabled(enabled)}
-            onEnd={() =>
-              void (async () => {
-                await pushToTalk.release();
-                await session.end();
-              })()
-            }
+            onEnd={endSession}
             onRetry={retry}
             onResumeAudio={() => void session.resumeAudio()}
             viewMode={viewMode}

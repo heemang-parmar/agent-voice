@@ -65,8 +65,9 @@ describe('TranscriptView', () => {
     expect(screen.getByText('Hello there').tagName).toBe('SPAN');
   });
 
-  it('shows an honest empty state before any turn has happened', () => {
+  it('uses a concise empty state without repeating composer instructions', () => {
     render(<TranscriptView entries={[]} />);
-    expect(screen.getByText(/no messages yet/i)).toBeInTheDocument();
+    expect(screen.getByText('Start a conversation')).toBeInTheDocument();
+    expect(screen.queryByText(/say something|type below/i)).not.toBeInTheDocument();
   });
 });

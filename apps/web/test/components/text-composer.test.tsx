@@ -43,23 +43,31 @@ describe('TextComposer', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it('keeps Send out of the way until the draft contains actual text', async () => {
+  it('replaces voice-mode entry with Send only when the draft contains actual text', async () => {
     const onSend = vi.fn();
+    const onEnterVoiceMode = vi.fn();
     const user = userEvent.setup();
-    render(<TextComposer disabled={false} onSend={onSend} />);
+    render(<TextComposer disabled={false} onSend={onSend} onEnterVoiceMode={onEnterVoiceMode} />);
     const input = screen.getByRole('textbox', { name: /message/i });
 
+    const voice = screen.getByRole('button', { name: 'Enter voice mode' });
     expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    await user.click(voice);
+    expect(onEnterVoiceMode).toHaveBeenCalledOnce();
+
     await user.type(input, '   ');
+    expect(screen.getByRole('button', { name: 'Enter voice mode' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
 
     await user.type(input, 'hello');
     const send = await screen.findByRole('button', { name: 'Send' });
     expect(send).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Enter voice mode' })).not.toBeInTheDocument();
 
     await user.click(send);
     expect(onSend).toHaveBeenCalledOnce();
     expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enter voice mode' })).toBeInTheDocument();
   });
 
   it('disables input and send while not connected', async () => {

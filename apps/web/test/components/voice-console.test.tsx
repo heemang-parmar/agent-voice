@@ -156,7 +156,7 @@ describe('VoiceConsole', () => {
     created[0]!.callbacks.onMicError('Microphone permission was not granted. You can keep typing.');
     await user.click(screen.getByRole('button', { name: /show text chat/i }));
 
-    await user.click(await screen.findByRole('button', { name: /^end voice$/i }));
+    await user.click(await screen.findByRole('button', { name: /^end conversation$/i }));
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(/ended/i);
     });
@@ -179,6 +179,22 @@ describe('VoiceConsole', () => {
     await user.type(input, 'hello{Enter}');
     expect(screen.getByText('hello')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /conversation/i })).toBeInTheDocument();
+  });
+
+  it('uses one text composer row and moves session ending into the heading', async () => {
+    const { factory } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await user.click(await screen.findByRole('button', { name: /show text chat/i }));
+
+    const composer = container.querySelector('.text-composer');
+    const heading = container.querySelector('.stage__text-heading');
+    expect(composer).toContainElement(screen.getByRole('button', { name: /hold to talk/i }));
+    expect(composer).toContainElement(screen.getByRole('button', { name: /enter voice mode/i }));
+    expect(heading).toContainElement(screen.getByRole('button', { name: /end conversation/i }));
+    expect(container.querySelector('.dock > .control-bar')).not.toBeInTheDocument();
+    expect(screen.getByText('Type a message or hold the mic to talk.')).toHaveClass('sr-only');
   });
 
   it('moves from voice to text and pauses the microphone when the composer is tapped', async () => {
