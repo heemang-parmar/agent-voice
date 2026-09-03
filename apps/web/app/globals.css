@@ -131,6 +131,17 @@ input {
   flex: 0 0 auto;
 }
 
+.stage__header--voice {
+  justify-content: flex-start;
+  min-height: var(--control);
+}
+
+.stage__header-action {
+  color: var(--color-text-muted);
+  border-color: var(--color-border);
+  background: transparent;
+}
+
 .stage__wordmark {
   font-size: 0.8125rem;
   font-weight: 600;
@@ -630,6 +641,14 @@ input {
   flex-wrap: wrap;
 }
 
+.stage[data-view='voice'] .text-composer {
+  flex-basis: 0;
+}
+
+.stage[data-view='voice'] .control-bar {
+  flex: 0 0 auto;
+}
+
 .text-composer {
   display: flex;
   align-items: center;
@@ -844,6 +863,12 @@ input {
   background: var(--color-danger-bg);
 }
 
+.stage[data-view='voice'] .icon-button--danger {
+  color: var(--color-bg);
+  border-color: var(--color-text);
+  background: var(--color-text);
+}
+
 .mode-button {
   appearance: none;
   display: inline-flex;
@@ -990,16 +1015,21 @@ input {
     flex: 1 1 100%;
   }
 
+  .stage[data-view='voice'] .text-composer {
+    flex: 1 1 0;
+  }
+
+  .stage[data-view='voice'] .control-bar {
+    flex: 0 0 auto;
+  }
+
+  .stage[data-view='voice'] .control-bar--audio-blocked {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
   .control-bar__buttons {
     justify-content: flex-end;
-  }
-
-  .stage[data-view='text'] .text-composer {
-    flex-basis: calc(100% - 152px);
-  }
-
-  .stage[data-view='text'] .control-bar {
-    flex: 0 0 auto;
   }
 
   .stage[data-view='text'] .control-bar--audio-blocked {

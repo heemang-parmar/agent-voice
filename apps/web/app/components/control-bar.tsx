@@ -1,6 +1,6 @@
 import type { SessionStatus } from '@/lib/client/session-state';
 
-import { EndIcon, MicIcon, MicOffIcon, TranscriptIcon, VoiceModeIcon } from './icons';
+import { EndIcon, MicIcon, MicOffIcon, VoiceModeIcon } from './icons';
 
 export type ConversationView = 'voice' | 'text';
 
@@ -53,28 +53,16 @@ export function ControlBar({
       ) : null}
       <div className="control-bar__buttons">
         {viewMode === 'voice' ? (
-          <>
-            <button
-              type="button"
-              className="mode-button"
-              aria-label="Show text chat"
-              title="Show text chat"
-              onClick={() => onViewModeChange('text')}
-            >
-              <TranscriptIcon />
-              <span>Text</span>
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              aria-pressed={!micEnabled}
-              aria-label={micEnabled ? 'Mute' : 'Unmute'}
-              title={micEnabled ? 'Mute the microphone' : 'Unmute the microphone'}
-              onClick={() => onToggleMic(!micEnabled)}
-            >
-              {micEnabled ? <MicIcon /> : <MicOffIcon />}
-            </button>
-          </>
+          <button
+            type="button"
+            className="icon-button"
+            aria-pressed={!micEnabled}
+            aria-label={micEnabled ? 'Mute' : 'Unmute'}
+            title={micEnabled ? 'Mute the microphone' : 'Unmute the microphone'}
+            onClick={() => onToggleMic(!micEnabled)}
+          >
+            {micEnabled ? <MicIcon /> : <MicOffIcon />}
+          </button>
         ) : (
           <button
             type="button"
@@ -90,8 +78,8 @@ export function ControlBar({
         <button
           type="button"
           className="icon-button icon-button--danger"
-          aria-label="End"
-          title="End the session"
+          aria-label="End voice"
+          title="End voice session"
           onClick={onEnd}
         >
           <EndIcon />

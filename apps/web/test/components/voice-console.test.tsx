@@ -156,7 +156,7 @@ describe('VoiceConsole', () => {
     created[0]!.callbacks.onMicError('Microphone permission was not granted. You can keep typing.');
     await user.click(screen.getByRole('button', { name: /show text chat/i }));
 
-    await user.click(await screen.findByRole('button', { name: /^end$/i }));
+    await user.click(await screen.findByRole('button', { name: /^end voice$/i }));
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(/ended/i);
     });
@@ -207,6 +207,8 @@ describe('VoiceConsole', () => {
     await waitFor(() => expect(created).toHaveLength(1));
 
     await user.tab();
+    expect(screen.getByRole('button', { name: /show text chat/i })).toHaveFocus();
+    await user.tab();
 
     expect(screen.getByRole('textbox', { name: /message/i })).toHaveFocus();
     expect(container.querySelector('main')).toHaveAttribute('data-view', 'voice');
@@ -227,6 +229,21 @@ describe('VoiceConsole', () => {
     expect(input).toHaveFocus();
     expect(created).toHaveLength(1);
     expect(created[0]?.mic).toContain(false);
+  });
+
+  it('uses a compact header transcript action without repeating live branding', async () => {
+    const { factory } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/listening/i));
+
+    const header = container.querySelector('.stage__header');
+    expect(header).toContainElement(screen.getByRole('button', { name: /show text chat/i }));
+    expect(header).not.toHaveTextContent(/agent voice|live/i);
+    expect(screen.queryByRole('button', { name: /^text$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /mute/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /end voice/i })).toBeInTheDocument();
   });
 
   it('shows the microphone transition while an explicit text-mode switch is pending', async () => {
@@ -363,17 +380,18 @@ describe('VoiceConsole', () => {
     expect(created).toHaveLength(1);
   });
 
-  it('marks the session live in the header only while it is actually connected', async () => {
+  it('keeps connection truth in the single dynamic status instead of a duplicate live badge', async () => {
     const { factory } = fakeFactory();
     const user = userEvent.setup();
     render(<VoiceConsole createTransport={factory} />);
     await user.click(screen.getByRole('button', { name: /start voice/i }));
-    expect(await screen.findByText('Live')).toBeInTheDocument();
+    expect(await screen.findByRole('status')).toHaveTextContent(/listening/i);
+    expect(screen.queryByText('Live')).not.toBeInTheDocument();
 
-    await user.click(await screen.findByRole('button', { name: /^end$/i }));
+    await user.click(await screen.findByRole('button', { name: /^end voice$/i }));
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(/ended/i);
     });
-    expect(screen.getByText('Offline')).toBeInTheDocument();
+    expect(screen.queryByText('Live')).not.toBeInTheDocument();
   });
 });

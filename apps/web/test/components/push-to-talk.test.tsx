@@ -280,7 +280,7 @@ describe('text-mode push to talk', () => {
     transport.mic.length = 0;
 
     fireEvent.pointerDown(button, { pointerId: 8, button: 0, isPrimary: true });
-    await user.click(screen.getByRole('button', { name: /^end$/i }));
+    await user.click(screen.getByRole('button', { name: /^end voice$/i }));
 
     await waitFor(() => expect(transport.mic).toEqual([true, false]));
     expect(transport.disconnects).toBe(1);

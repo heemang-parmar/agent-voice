@@ -46,7 +46,7 @@ describe('ControlBar', () => {
     expect(onToggleMic).toHaveBeenCalledWith(true);
   });
 
-  it('ends the session on End click', async () => {
+  it('ends the session on End voice click', async () => {
     const onEnd = vi.fn();
     const user = userEvent.setup();
     render(
@@ -62,7 +62,7 @@ describe('ControlBar', () => {
         onViewModeChange={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole('button', { name: /^end$/i }));
+    await user.click(screen.getByRole('button', { name: /^end voice$/i }));
     expect(onEnd).toHaveBeenCalled();
   });
 
@@ -115,7 +115,7 @@ describe('ControlBar', () => {
     );
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /new conversation/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^end$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^end voice$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /unmute|mute/i })).not.toBeInTheDocument();
   });
 
@@ -157,7 +157,10 @@ describe('ControlBar', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Mute' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'End' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'End voice' })).toHaveAttribute(
+      'title',
+      'End voice session',
+    );
 
     rerender(
       <ControlBar
@@ -213,5 +216,25 @@ describe('ControlBar', () => {
     for (const button of screen.getAllByRole('button')) {
       expect(button.tagName).toBe('BUTTON');
     }
+  });
+
+  it('keeps the voice control row focused on microphone and ending the session', () => {
+    render(
+      <ControlBar
+        micEnabled
+        audioBlocked={false}
+        status="listening"
+        onToggleMic={vi.fn()}
+        onEnd={vi.fn()}
+        onRetry={vi.fn()}
+        onResumeAudio={vi.fn()}
+        viewMode="voice"
+        onViewModeChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /show text chat/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mute' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'End voice' })).toBeInTheDocument();
   });
 });

@@ -12,6 +12,7 @@ import { ActionTimeline } from './action-timeline';
 import { AgentOrb } from './agent-orb';
 import { ApprovalCard } from './approval-card';
 import { ControlBar, type ConversationView } from './control-bar';
+import { TranscriptIcon } from './icons';
 import { StartScreen } from './start-screen';
 import { StatusBadge } from './status-badge';
 import { TextComposer } from './text-composer';
@@ -20,9 +21,6 @@ import { TranscriptView } from './transcript-view';
 export interface VoiceConsoleProps {
   createTransport?: TransportFactory;
 }
-
-/** Statuses where the live connection is genuinely up right now. */
-const LIVE_STATUSES = new Set(['listening', 'thinking', 'speaking', 'acting', 'awaiting-approval']);
 
 /**
  * The whole voice/text experience for one session. All state comes from
@@ -122,15 +120,7 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
       data-transcript={viewMode === 'text' && hasTranscript ? 'active' : 'empty'}
       data-view={viewMode}
     >
-      <StageHeader
-        presence={
-          LIVE_STATUSES.has(session.status)
-            ? 'Live'
-            : session.status === 'error' || session.status === 'ended'
-              ? 'Offline'
-              : 'Connecting'
-        }
-      />
+      {viewMode === 'voice' ? <VoiceHeader onShowText={() => changeView('text')} /> : null}
 
       <div className="stage__body">
         {viewMode === 'voice' ? (
@@ -256,6 +246,22 @@ function StageHeader({ presence }: { presence: 'Ready' | 'Connecting' | 'Live' |
         <span className="stage__presence-dot" aria-hidden="true" />
         {presence}
       </span>
+    </header>
+  );
+}
+
+function VoiceHeader({ onShowText }: { onShowText(): void }) {
+  return (
+    <header className="stage__header stage__header--voice">
+      <button
+        type="button"
+        className="icon-button stage__header-action"
+        aria-label="Show text chat"
+        title="Show text chat"
+        onClick={onShowText}
+      >
+        <TranscriptIcon />
+      </button>
     </header>
   );
 }

@@ -61,7 +61,7 @@ export function TextComposer({
         type="text"
         value={value}
         disabled={disabled}
-        placeholder="Type a message"
+        placeholder="Ask Kyra"
         autoComplete="off"
         enterKeyHint="send"
         onPointerDown={onInteraction}
@@ -72,15 +72,17 @@ export function TextComposer({
         }}
       />
       {pushToTalk ? <PushToTalkButton {...pushToTalk} /> : null}
-      <button
-        type="submit"
-        className="icon-button icon-button--accent"
-        disabled={disabled || value.trim().length === 0}
-        aria-label="Send"
-        title="Send message"
-      >
-        <SendIcon />
-      </button>
+      {value.trim().length > 0 ? (
+        <button
+          type="submit"
+          className="icon-button icon-button--accent"
+          disabled={disabled}
+          aria-label="Send"
+          title="Send message"
+        >
+          <SendIcon />
+        </button>
+      ) : null}
     </form>
   );
 }
