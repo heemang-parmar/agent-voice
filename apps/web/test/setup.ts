@@ -32,6 +32,39 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
   });
 }
 
+/*
+ * Under this Node/jsdom pairing `window.localStorage` resolves to `undefined`
+ * even though jsdom built a real Storage, so the session library would see no
+ * storage at all and every persistence test would trivially pass. Install a
+ * genuine in-memory Storage instead, and clear it after each test so no
+ * conversation leaks from one case into the next.
+ */
+if (typeof window !== 'undefined' && !window.localStorage) {
+  const entries = new Map<string, string>();
+  const storage: Storage = {
+    get length() {
+      return entries.size;
+    },
+    clear: () => entries.clear(),
+    getItem: (key: string) => entries.get(key) ?? null,
+    key: (index: number) => [...entries.keys()][index] ?? null,
+    removeItem: (key: string) => {
+      entries.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      entries.set(key, String(value));
+    },
+  };
+  Object.defineProperty(window, 'localStorage', {
+    value: storage,
+    writable: true,
+    configurable: true,
+  });
+}
+
 afterEach(() => {
   cleanup();
+  // Guarded: the pure reducer/transport suites opt into the node environment,
+  // where there is no window to clear.
+  if (typeof window !== 'undefined') window.localStorage?.clear();
 });

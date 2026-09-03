@@ -4,6 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
 import { VoiceConsole } from '@/app/components/voice-console';
+import {
+  emptyLibrary,
+  readLibrary,
+  upsertConversation,
+  writeLibrary,
+} from '@/lib/client/session-library';
 import type { Transport, TransportCallbacks, TransportFactory } from '@/lib/client/transport';
 import { TransportError } from '@/lib/client/transport';
 
@@ -63,6 +69,25 @@ function fakeFactory(
     return transport;
   };
   return { factory, created };
+}
+
+/** Puts one saved conversation on this "device" before the console mounts. */
+function seedLibrary(id: string, text: string): void {
+  writeLibrary(
+    upsertConversation(emptyLibrary(), {
+      id,
+      transcript: [
+        { id: `user:${id}`, role: 'user', text, final: true, ts: '2026-02-01T00:00:00.000Z' },
+      ],
+      now: '2026-02-01T00:00:00.000Z',
+    }),
+    window.localStorage,
+  );
+}
+
+async function openTextMode(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('button', { name: /start voice/i }));
+  await user.click(await screen.findByRole('button', { name: /show text chat/i }));
 }
 
 describe('VoiceConsole', () => {
@@ -178,10 +203,10 @@ describe('VoiceConsole', () => {
     const input = await screen.findByRole('textbox', { name: /message/i });
     await user.type(input, 'hello{Enter}');
     expect(screen.getByText('hello')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /conversation/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /conversation/i })).not.toBeInTheDocument();
   });
 
-  it('uses one text composer row and moves session ending into the heading', async () => {
+  it('uses one text composer row and moves session ending into the compact bar', async () => {
     const { factory } = fakeFactory();
     const user = userEvent.setup();
     const { container } = render(<VoiceConsole createTransport={factory} />);
@@ -189,10 +214,10 @@ describe('VoiceConsole', () => {
     await user.click(await screen.findByRole('button', { name: /show text chat/i }));
 
     const composer = container.querySelector('.text-composer');
-    const heading = container.querySelector('.stage__text-heading');
+    const bar = container.querySelector('.conversation-bar');
     expect(composer).toContainElement(screen.getByRole('button', { name: /hold to talk/i }));
     expect(composer).toContainElement(screen.getByRole('button', { name: /enter voice mode/i }));
-    expect(heading).toContainElement(screen.getByRole('button', { name: /end conversation/i }));
+    expect(bar).toContainElement(screen.getByRole('button', { name: /end conversation/i }));
     expect(container.querySelector('.dock > .control-bar')).not.toBeInTheDocument();
     expect(screen.getByText('Type a message or hold the mic to talk.')).toHaveClass('sr-only');
   });
@@ -376,7 +401,7 @@ describe('VoiceConsole', () => {
     expect(
       screen.queryByRole('button', { name: /retry|new conversation/i }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /conversation/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /conversation/i })).not.toBeInTheDocument();
     expect(screen.getByText('keep this')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /message/i })).toHaveFocus();
     expect(created).toHaveLength(1);
@@ -409,5 +434,183 @@ describe('VoiceConsole', () => {
       expect(screen.getByRole('status')).toHaveTextContent(/ended/i);
     });
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
+  });
+
+  it('replaces the text-mode heading block with one compact app bar', async () => {
+    const { factory } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await user.click(await screen.findByRole('button', { name: /show text chat/i }));
+
+    expect(container.querySelector('.stage__text-heading')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /conversation/i })).not.toBeInTheDocument();
+
+    const bar = container.querySelector('.conversation-bar');
+    expect(bar).toBeInTheDocument();
+    expect(bar).toContainElement(screen.getByRole('button', { name: /sessions/i }));
+    expect(bar).toContainElement(screen.getByRole('status'));
+    expect(bar).toContainElement(screen.getByRole('button', { name: /^end conversation$/i }));
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+  });
+
+  it('keeps the ended text state compact, with New conversation in the bar', async () => {
+    const { factory } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await user.click(await screen.findByRole('button', { name: /show text chat/i }));
+    await user.click(await screen.findByRole('button', { name: /^end conversation$/i }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/ended/i));
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    expect(container.querySelector('.conversation-bar')).toContainElement(
+      screen.getByRole('button', { name: /new conversation/i }),
+    );
+    expect(screen.getAllByRole('button', { name: /new conversation/i })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /^end conversation$/i })).not.toBeInTheDocument();
+  });
+
+  it('opens the session drawer from the bar and closes it back onto its opener', async () => {
+    const { factory } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await openTextMode(user);
+
+    const sessions = screen.getByRole('button', { name: /sessions/i });
+    await user.click(sessions);
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(container.querySelector('main')).toHaveAttribute('inert');
+    expect(sessions).toHaveAttribute('aria-expanded', 'true');
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(container.querySelector('main')).not.toHaveAttribute('inert');
+    await waitFor(() => expect(sessions).toHaveFocus());
+  });
+
+  it('keeps the live conversation in the device library as it grows', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+    await user.type(
+      await screen.findByRole('textbox', { name: /message/i }),
+      'Book a table{Enter}',
+    );
+
+    await waitFor(() => {
+      expect(readLibrary(window.localStorage).conversations).toHaveLength(1);
+    });
+    expect(readLibrary(window.localStorage).conversations[0]?.title).toBe('Book a table');
+
+    await user.click(screen.getByRole('button', { name: /sessions/i }));
+    expect(await screen.findByRole('button', { name: 'Book a table' })).toBeInTheDocument();
+  });
+
+  it('archives one record per session even after the transport binds a room id', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    const input = await screen.findByRole('textbox', { name: /message/i });
+    await user.type(input, 'first{Enter}');
+    await waitFor(() => expect(readLibrary(window.localStorage).conversations).toHaveLength(1));
+
+    // The room id only arrives with the first event; it must not fork a record.
+    for (const event of scenarios.delegation.events.slice(0, 3))
+      created[0]!.callbacks.onEvent(event);
+    await user.type(input, 'second{Enter}');
+
+    await waitFor(() => expect(screen.getByText('second')).toBeInTheDocument());
+    expect(readLibrary(window.localStorage).conversations).toHaveLength(1);
+  });
+
+  it('ends the live session and its microphone before showing a saved conversation', async () => {
+    seedLibrary('saved_1', 'Yesterday plan');
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    render(<VoiceConsole createTransport={factory} />);
+    await openTextMode(user);
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    await user.click(screen.getByRole('button', { name: /sessions/i }));
+    await user.click(await screen.findByRole('button', { name: 'Yesterday plan' }));
+
+    await waitFor(() => expect(screen.getByText('Yesterday plan')).toBeInTheDocument());
+    expect(created[0]?.disconnects).toBeGreaterThan(0);
+    expect(created[0]?.mic.at(-1)).toBe(false);
+    expect(created).toHaveLength(1);
+
+    expect(screen.getByRole('status')).toHaveTextContent(/saved/i);
+    expect(screen.queryByRole('textbox', { name: /message/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /hold to talk/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^end conversation$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+  });
+
+  it('starts a fresh text session from the drawer and leaves the archive behind', async () => {
+    seedLibrary('saved_1', 'Yesterday plan');
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await openTextMode(user);
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    await user.click(screen.getByRole('button', { name: /sessions/i }));
+    await user.click(await screen.findByRole('button', { name: 'Yesterday plan' }));
+    await waitFor(() => expect(screen.getByText('Yesterday plan')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: /sessions/i }));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: /new conversation/i }),
+    );
+
+    await waitFor(() => expect(created).toHaveLength(2));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('Yesterday plan')).not.toBeInTheDocument();
+    expect(container.querySelector('main')).toHaveAttribute('data-view', 'text');
+    expect(await screen.findByRole('textbox', { name: /message/i })).toBeInTheDocument();
+  });
+
+  it('does not archive a session in which nothing was ever said', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    render(<VoiceConsole createTransport={factory} />);
+    await openTextMode(user);
+    await waitFor(() => expect(created).toHaveLength(1));
+    await user.click(await screen.findByRole('button', { name: /^end conversation$/i }));
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/ended/i));
+    expect(readLibrary(window.localStorage).conversations).toEqual([]);
+  });
+
+  it('does not re-archive the finished conversation under the new session id', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+    await user.type(
+      await screen.findByRole('textbox', { name: /message/i }),
+      'Book a table{Enter}',
+    );
+    await waitFor(() => expect(readLibrary(window.localStorage).conversations).toHaveLength(1));
+
+    await user.click(await screen.findByRole('button', { name: /^end conversation$/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/ended/i));
+
+    await user.click(screen.getByRole('button', { name: /new conversation/i }));
+    await waitFor(() => expect(created).toHaveLength(2));
+
+    const saved = readLibrary(window.localStorage).conversations;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.title).toBe('Book a table');
   });
 });

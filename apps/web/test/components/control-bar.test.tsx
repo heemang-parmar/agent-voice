@@ -18,7 +18,6 @@ describe('ControlBar', () => {
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     const button = screen.getByRole('button', { name: /mute/i });
@@ -39,7 +38,6 @@ describe('ControlBar', () => {
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     await user.click(screen.getByRole('button', { name: /unmute/i }));
@@ -59,7 +57,6 @@ describe('ControlBar', () => {
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     await user.click(screen.getByRole('button', { name: /^end voice$/i }));
@@ -79,7 +76,6 @@ describe('ControlBar', () => {
         onRetry={onRetry}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
@@ -94,7 +90,6 @@ describe('ControlBar', () => {
         onRetry={onRetry}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     await user.click(screen.getByRole('button', { name: /retry/i }));
@@ -110,7 +105,6 @@ describe('ControlBar', () => {
         onRetry={onRetry}
         onResumeAudio={vi.fn()}
         viewMode="text"
-        onViewModeChange={vi.fn()}
       />,
     );
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
@@ -132,7 +126,6 @@ describe('ControlBar', () => {
         onRetry={vi.fn()}
         onResumeAudio={onResumeAudio}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     expect(container.firstElementChild).toHaveClass('control-bar--audio-blocked');
@@ -153,7 +146,6 @@ describe('ControlBar', () => {
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     expect(screen.getByRole('button', { name: 'Mute' })).toHaveAttribute('aria-pressed', 'false');
@@ -172,7 +164,6 @@ describe('ControlBar', () => {
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     expect(screen.getByRole('button', { name: 'Unmute' })).toHaveAttribute('aria-pressed', 'true');
@@ -189,7 +180,6 @@ describe('ControlBar', () => {
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     const glyphs = container.querySelectorAll('svg');
@@ -210,7 +200,6 @@ describe('ControlBar', () => {
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
     for (const button of screen.getAllByRole('button')) {
@@ -229,7 +218,6 @@ describe('ControlBar', () => {
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
-        onViewModeChange={vi.fn()}
       />,
     );
 

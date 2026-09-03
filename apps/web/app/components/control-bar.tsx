@@ -13,7 +13,6 @@ export interface ControlBarProps {
   onRetry: () => void;
   onResumeAudio: () => void;
   viewMode: ConversationView;
-  onViewModeChange: (view: ConversationView) => void;
 }
 
 export function ControlBar({

@@ -84,3 +84,40 @@ export function VoiceModeIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function SessionsIcon({ className }: IconProps) {
+  return (
+    <svg {...svgProps(className)}>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M9.5 4.5v15" />
+    </svg>
+  );
+}
+
+export function NewChatIcon({ className }: IconProps) {
+  return (
+    <svg {...svgProps(className)}>
+      <path d="M12 5.5v13" />
+      <path d="M5.5 12h13" />
+    </svg>
+  );
+}
+
+export function PinIcon({ className }: IconProps) {
+  return (
+    <svg {...svgProps(className)}>
+      <path d="M9 3.5h6l-.8 5.2 3 3.1H6.8l3-3.1z" />
+      <path d="M12 11.8V20.5" />
+    </svg>
+  );
+}
+
+export function MoreIcon({ className }: IconProps) {
+  return (
+    <svg {...svgProps(className)}>
+      <circle cx="12" cy="5.5" r="1.1" />
+      <circle cx="12" cy="12" r="1.1" />
+      <circle cx="12" cy="18.5" r="1.1" />
+    </svg>
+  );
+}
