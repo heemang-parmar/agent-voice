@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type PushToTalkPhase = 'idle' | 'starting' | 'listening' | 'finishing';
 
-const MICROPHONE_ENABLE_TIMEOUT_MS = 4_000;
+const MICROPHONE_OPERATION_TIMEOUT_MS = 2_000;
 
 interface UsePushToTalkOptions {
   enabled: boolean;
@@ -53,27 +53,28 @@ export function usePushToTalk({
         .catch(() => undefined)
         .then(async () => {
           const request = setMicrophoneEnabled(nextEnabled);
-          if (nextEnabled) {
-            let timeout: ReturnType<typeof setTimeout> | undefined;
-            const outcome = await Promise.race([
-              request.then(() => 'settled' as const),
-              new Promise<'timeout'>((resolve) => {
-                timeout = setTimeout(() => resolve('timeout'), MICROPHONE_ENABLE_TIMEOUT_MS);
-              }),
-            ]);
-            if (timeout) clearTimeout(timeout);
-            if (outcome === 'timeout') {
-              // A browser permission/media request can remain pending indefinitely.
-              // Let release continue, then correct any enable that resolves late.
-              void request
-                .then(async () => {
-                  if (!desired.current || !held.current) await setMicrophoneEnabled(false);
-                })
-                .catch(() => undefined);
-              return;
-            }
-          } else {
-            await request;
+          let timeout: ReturnType<typeof setTimeout> | undefined;
+          const outcome = await Promise.race([
+            request.then(() => 'settled' as const),
+            new Promise<'timeout'>((resolve) => {
+              timeout = setTimeout(() => resolve('timeout'), MICROPHONE_OPERATION_TIMEOUT_MS);
+            }),
+          ]);
+          if (timeout) clearTimeout(timeout);
+          if (outcome === 'timeout') {
+            // Browser permission/media requests can remain pending indefinitely.
+            // Keep release bounded, and correct any enable that resolves late.
+            void request
+              .then(async () => {
+                if (nextEnabled && (!desired.current || !held.current)) {
+                  await setMicrophoneEnabled(false);
+                } else if (nextEnabled && mounted.current) {
+                  updatePhase('listening');
+                }
+              })
+              .catch(() => undefined);
+            if (!nextEnabled && !desired.current) updatePhase('idle');
+            return;
           }
           if (!mounted.current) return;
           if (nextEnabled && desired.current && held.current) updatePhase('listening');

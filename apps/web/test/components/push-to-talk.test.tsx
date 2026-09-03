@@ -171,18 +171,22 @@ describe('text-mode push to talk', () => {
     });
 
     await act(async () => {
-      vi.advanceTimersByTime(4_000);
+      vi.advanceTimersByTime(2_000);
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(transport.pending[0]!.enabled).toBe(false);
-    await finish(transport.pending.shift()!);
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(screen.getByRole('status')).toHaveTextContent(/^ready/i);
 
     await finish(lateEnable);
     await act(async () => Promise.resolve());
-    expect(transport.pending[0]!.enabled).toBe(false);
-    await finish(transport.pending.shift()!);
+    expect(transport.pending.every((change) => !change.enabled)).toBe(true);
+    for (const pending of transport.pending.splice(0)) await finish(pending);
     expect(transport.mic.at(-1)).toBe(false);
   });
 
