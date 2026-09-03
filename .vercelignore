@@ -1,0 +1,20 @@
+# Local dependencies and build outputs
+node_modules
+**/node_modules
+.next
+**/.next
+.venv
+**/.venv
+dist
+**/dist
+coverage
+**/coverage
+
+# Local configuration and tooling
+.env
+.env.*
+!.env.example
+.vercel
+.hermes
+.DS_Store
+*.log
