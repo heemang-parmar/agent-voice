@@ -128,14 +128,14 @@ async def test_build_agent_session_preserves_the_default_openai_realtime_path() 
     assert session._tts is None
 
 
-async def test_build_agent_session_uses_livekit_inference_without_an_openai_key() -> None:
+async def test_build_agent_session_uses_low_latency_speech_safe_livekit_stack() -> None:
     config = replace(
         BASE_CONFIG,
         livekit_api_secret="x" * 32,
         openai_api_key=None,
         realtime_provider="livekit-inference",
-        realtime_model="openai/gpt-4o-mini",
-        realtime_voice="rigel",
+        realtime_model="google/gemma-4-31b-it",
+        realtime_voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
     )
     session = build_agent_session(config)
     assert isinstance(session, AgentSession)
@@ -143,8 +143,18 @@ async def test_build_agent_session_uses_livekit_inference_without_an_openai_key(
     assert isinstance(session._llm, inference.LLM)
     assert isinstance(session._tts, inference.TTS)
     assert session._stt.model == "deepgram/flux-general"
-    assert session._llm.model == "openai/gpt-4o-mini"
-    assert session._tts.model == "xai/tts-1"
+    assert session._llm.model == "google/gemma-4-31b-it"
+    assert session._tts.model == "cartesia/sonic-3-latest"
+    assert session._tts._opts.voice == "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
+    assert not session._expressive
+    assert session._opts.use_tts_aligned_transcript is True
+    endpointing = session._opts.turn_handling["endpointing"]
+    assert endpointing["mode"] == "dynamic"
+    assert endpointing["min_delay"] == 0.3
+    assert endpointing["max_delay"] == 1.2
+    preemptive = session._opts.turn_handling["preemptive_generation"]
+    assert preemptive["enabled"] is True
+    assert preemptive["preemptive_tts"] is False
 
 
 async def test_livekit_inference_session_allows_immediate_adaptive_barge_in() -> None:
@@ -153,8 +163,8 @@ async def test_livekit_inference_session_allows_immediate_adaptive_barge_in() ->
         livekit_api_secret="x" * 32,
         openai_api_key=None,
         realtime_provider="livekit-inference",
-        realtime_model="openai/gpt-4o-mini",
-        realtime_voice="rigel",
+        realtime_model="google/gemma-4-31b-it",
+        realtime_voice="9626c31c-bec5-4cca-baa8-f8ba9e84c8bc",
     )
 
     session = build_agent_session(config)
@@ -261,3 +271,12 @@ def test_agent_instructions_never_claim_success_without_verification() -> None:
     lowered = AGENT_INSTRUCTIONS.lower()
     assert "verifi" in lowered
     assert len(AGENT_INSTRUCTIONS) > 0
+
+
+def test_agent_instructions_require_natural_spoken_turns() -> None:
+    lowered = AGENT_INSTRUCTIONS.lower()
+    assert "live spoken dialogue" in lowered
+    assert "one to three sentences" in lowered
+    assert "one question at a time" in lowered
+    assert "vary" in lowered and "opening" in lowered
+    assert "do not restate" in lowered

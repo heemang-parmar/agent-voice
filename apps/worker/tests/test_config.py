@@ -74,8 +74,8 @@ def test_livekit_inference_does_not_require_an_openai_key() -> None:
     assert result.ok
     assert result.config.openai_api_key is None
     assert result.config.realtime_provider == "livekit-inference"
-    assert result.config.realtime_model == "openai/gpt-4o-mini"
-    assert result.config.realtime_voice == "rigel"
+    assert result.config.realtime_model == "google/gemma-4-31b-it"
+    assert result.config.realtime_voice == "9626c31c-bec5-4cca-baa8-f8ba9e84c8bc"
 
 
 def test_rejects_an_unknown_realtime_provider() -> None:

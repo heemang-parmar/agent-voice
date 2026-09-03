@@ -38,11 +38,16 @@ from agent_voice_worker.protocol.parse import ProtocolEncodeError, encode_event
 from agent_voice_worker.runtime import ConversationRuntime, NullAdapter
 
 AGENT_INSTRUCTIONS = (
-    "You are a helpful, concise voice assistant. Handle ordinary conversation yourself. "
-    "For anything that needs memory, current facts, calculations, files, code, scheduling, "
-    "or an external action, call delegate_to_agent instead of guessing. Never tell the user "
-    "something was done, changed, or scheduled unless delegate_to_agent actually returned a "
-    "verified result — if it failed or you did not call it, say so plainly."
+    "You are a warm, attentive voice assistant in live spoken dialogue, not a command-and-response "
+    "interface. Handle ordinary conversation yourself. Reply in plain, speakable language. Keep most "
+    "turns to one to three sentences and ask one question at a time. Do not restate the user's words "
+    "unless clarification is needed. Vary your openings and avoid repeated canned acknowledgements. "
+    "Use contractions and brief natural acknowledgements when they fit, but do not overuse filler. "
+    "Leave room for the user to respond instead of delivering a monologue. For anything that needs "
+    "memory, current facts, calculations, files, code, scheduling, or an external action, call "
+    "delegate_to_agent instead of guessing. Never tell the user something was done, changed, or "
+    "scheduled unless delegate_to_agent actually returned a verified result — if it failed or you "
+    "did not call it, say so plainly."
 )
 
 DELEGATE_TOOL_DESCRIPTION = (
@@ -53,7 +58,7 @@ DELEGATE_TOOL_DESCRIPTION = (
 )
 
 INFERENCE_STT_MODEL = "deepgram/flux-general"
-INFERENCE_TTS_MODEL = "xai/tts-1"
+INFERENCE_TTS_MODEL = "cartesia/sonic-3-latest"
 
 
 def build_adapter(config: WorkerConfig) -> AgentAdapter:
@@ -85,6 +90,17 @@ def build_agent_session(config: WorkerConfig) -> AgentSession[Any]:
         return AgentSession(
             turn_handling=TurnHandlingOptions(
                 turn_detection=inference.TurnDetector(),
+                endpointing={
+                    "mode": "dynamic",
+                    "min_delay": 0.3,
+                    "max_delay": 1.2,
+                },
+                preemptive_generation={
+                    "enabled": True,
+                    # Tool-bearing replies remain speculative until the turn is
+                    # committed; starting audio earlier could speak stale text.
+                    "preemptive_tts": False,
+                },
                 interruption={
                     "enabled": True,
                     "mode": "adaptive",
@@ -93,6 +109,7 @@ def build_agent_session(config: WorkerConfig) -> AgentSession[Any]:
                     "resume_false_interruption": True,
                 },
             ),
+            use_tts_aligned_transcript=True,
             # Browsers already provide WebRTC echo cancellation. LiveKit's
             # default 3s warmup suppresses genuine barge-ins at the start of
             # every reply, which makes the agent feel uninterruptible.
@@ -114,6 +131,7 @@ def build_agent_session(config: WorkerConfig) -> AgentSession[Any]:
                 language="en",
                 api_key=config.livekit_api_key,
                 api_secret=config.livekit_api_secret,
+                extra_kwargs={"speed": 1.0, "max_buffer_delay_ms": 80},
             ),
         )
     return AgentSession(llm=build_realtime_model(config))
