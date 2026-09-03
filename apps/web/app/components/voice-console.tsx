@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { createLiveKitTransport } from '@/lib/client/livekit-transport';
+import { usePushToTalk } from '@/lib/client/use-push-to-talk';
 import type { SessionMode } from '@/lib/client/session-state';
 import type { TransportFactory } from '@/lib/client/transport';
 import { useVoiceSession } from '@/lib/client/use-voice-session';
@@ -35,6 +36,12 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
   const composerInput = useRef<HTMLInputElement>(null);
   const stream = useRef<HTMLDivElement>(null);
   const [viewMode, setViewMode] = useState<ConversationView>('voice');
+  const connected = session.state.phase === 'connected';
+  const pushToTalk = usePushToTalk({
+    enabled: connected && viewMode === 'text' && session.status !== 'ended',
+    microphoneEnabled: session.state.micEnabled,
+    setMicrophoneEnabled: session.setMicrophoneEnabled,
+  });
 
   const transcript = session.state.transcript;
   const actions = session.state.actions;
@@ -67,7 +74,6 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
     );
   }
 
-  const connected = session.state.phase === 'connected';
   const hasTranscript = transcript.length > 0;
   const changeView = (view: ConversationView): void => {
     if (viewModeRef.current === view) {
@@ -85,7 +91,15 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
     }
     setViewMode(view);
     lastMode.current = view;
-    if (connected) void session.setMicrophoneEnabled(view === 'voice');
+    if (!connected) return;
+    if (view === 'text') {
+      void session.setMicrophoneEnabled(false);
+    } else {
+      void (async () => {
+        await pushToTalk.release();
+        await session.setMicrophoneEnabled(true);
+      })();
+    }
   };
   const switchingToText = connected && viewMode === 'text' && session.state.micEnabled;
   const textReady =
@@ -93,6 +107,14 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
   const microphoneOff = connected && viewMode === 'voice' && !session.state.micEnabled;
   const voiceMuted = microphoneOff && session.status === 'listening';
   const visualStatus = textReady || voiceMuted ? 'idle' : session.status;
+  const pushToTalkStatus =
+    viewMode === 'text' && pushToTalk.phase !== 'idle'
+      ? pushToTalk.phase === 'starting'
+        ? { label: 'Starting microphone', description: 'Preparing voice input…' }
+        : pushToTalk.phase === 'listening'
+          ? { label: 'Listening', description: 'Release to send.' }
+          : { label: 'Finishing voice input', description: 'Processing your spoken turn…' }
+      : null;
 
   return (
     <main
@@ -150,11 +172,12 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
                   ? null
                   : session.state.micError
               }
-              {...(switchingToText
-                ? { label: 'Switching to text', description: 'Pausing the microphone…' }
-                : textReady
-                  ? { label: 'Ready', description: 'Type a message to begin.' }
-                  : {})}
+              {...(pushToTalkStatus ??
+                (switchingToText
+                  ? { label: 'Switching to text', description: 'Pausing the microphone…' }
+                  : textReady
+                    ? { label: 'Ready', description: 'Type a message or hold the mic to talk.' }
+                    : {}))}
             />
           </div>
         )}
@@ -187,6 +210,16 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
               inputRef={composerInput}
               onInteraction={() => changeView('text')}
               onSend={(text) => void session.sendText(text)}
+              {...(viewMode === 'text'
+                ? {
+                    pushToTalk: {
+                      disabled: !connected || switchingToText,
+                      phase: pushToTalk.phase,
+                      onStart: pushToTalk.start,
+                      onRelease: () => void pushToTalk.release(),
+                    },
+                  }
+                : {})}
             />
           ) : null}
           <ControlBar
@@ -194,7 +227,12 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
             audioBlocked={session.state.audioBlocked}
             status={session.status}
             onToggleMic={(enabled) => void session.setMicrophoneEnabled(enabled)}
-            onEnd={() => void session.end()}
+            onEnd={() =>
+              void (async () => {
+                await pushToTalk.release();
+                await session.end();
+              })()
+            }
             onRetry={retry}
             onResumeAudio={() => void session.resumeAudio()}
             viewMode={viewMode}

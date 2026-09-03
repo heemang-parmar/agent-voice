@@ -646,6 +646,41 @@ input {
   border-color: var(--color-border-strong);
 }
 
+.push-to-talk {
+  display: inline-grid;
+  place-items: center;
+  width: var(--control);
+  min-width: var(--control);
+  height: var(--control);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.push-to-talk:hover:not(:disabled),
+.push-to-talk:focus-visible {
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+}
+
+.push-to-talk[data-phase='starting'],
+.push-to-talk[data-phase='listening'] {
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+.push-to-talk:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .text-composer__input {
   flex: 1 1 auto;
   min-width: 0;

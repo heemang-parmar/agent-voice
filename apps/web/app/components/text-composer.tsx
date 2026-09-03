@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 
+import type { PushToTalkPhase } from '@/lib/client/use-push-to-talk';
+
 import { SendIcon } from './icons';
+import { PushToTalkButton } from './push-to-talk-button';
 
 export interface TextComposerProps {
   disabled: boolean;
@@ -10,6 +13,12 @@ export interface TextComposerProps {
   autoFocus?: boolean;
   inputRef?: RefObject<HTMLInputElement | null>;
   onInteraction?: () => void;
+  pushToTalk?: {
+    disabled: boolean;
+    phase: PushToTalkPhase;
+    onStart(): void;
+    onRelease(): void;
+  };
 }
 
 export function TextComposer({
@@ -18,6 +27,7 @@ export function TextComposer({
   autoFocus = false,
   inputRef,
   onInteraction,
+  pushToTalk,
 }: TextComposerProps) {
   const [value, setValue] = useState('');
   const localInput = useRef<HTMLInputElement>(null);
@@ -61,6 +71,7 @@ export function TextComposer({
           setValue(event.target.value);
         }}
       />
+      {pushToTalk ? <PushToTalkButton {...pushToTalk} /> : null}
       <button
         type="submit"
         className="icon-button icon-button--accent"
