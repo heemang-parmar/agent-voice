@@ -32,6 +32,9 @@ import { StatusBadge } from './status-badge';
 import { TextComposer } from './text-composer';
 import { TranscriptView } from './transcript-view';
 
+const PRODUCT_NAME = 'AskKyra';
+const START_SCREEN_HEADING = 'Talk to Kyra';
+
 export interface VoiceConsoleProps {
   createTransport?: TransportFactory;
 }
@@ -174,8 +177,12 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
   if (notStarted) {
     return (
       <main className="stage stage--start">
-        <StageHeader presence={awaitingConfig ? 'Offline' : 'Ready'} />
-        <StartScreen onStart={start} missingConfig={session.missingConfig} />
+        <StageHeader productName={PRODUCT_NAME} offline={awaitingConfig} />
+        <StartScreen
+          onStart={start}
+          missingConfig={session.missingConfig}
+          heading={START_SCREEN_HEADING}
+        />
       </main>
     );
   }
@@ -198,8 +205,12 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
   if (!archived && ended && !hasTranscript) {
     return (
       <main className="stage stage--start">
-        <StageHeader presence="Ready" />
-        <StartScreen onStart={startFresh} missingConfig={session.missingConfig} />
+        <StageHeader productName={PRODUCT_NAME} />
+        <StartScreen
+          onStart={startFresh}
+          missingConfig={session.missingConfig}
+          heading={START_SCREEN_HEADING}
+        />
       </main>
     );
   }
@@ -280,6 +291,7 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
                   <StatusBadge
                     status={session.status}
                     variant="orb"
+                    visuallyHidden
                     showDescription={voiceMuted && Boolean(session.state.micError)}
                     micError={voiceMuted ? null : session.state.micError}
                     {...(voiceMuted
@@ -331,6 +343,7 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
                 <StatusBadge
                   status={saved ? 'ended' : session.status}
                   variant="compact"
+                  visuallyHidden={!saved}
                   micError={saved || textReady || switchingToText ? null : session.state.micError}
                   {...(saved
                     ? {
@@ -436,14 +449,16 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
  * Lightweight identity. Deliberately not a live region: the one announced
  * status lives in `StatusBadge`, and a second one would talk over it.
  */
-function StageHeader({ presence }: { presence: 'Ready' | 'Connecting' | 'Live' | 'Offline' }) {
+function StageHeader({ productName, offline = false }: { productName: string; offline?: boolean }) {
   return (
     <header className="stage__header">
-      <span className="stage__wordmark">Agent Voice</span>
-      <span className="stage__presence" data-live={String(presence === 'Live')}>
-        <span className="stage__presence-dot" aria-hidden="true" />
-        {presence}
-      </span>
+      <span className="stage__wordmark">{productName}</span>
+      {offline ? (
+        <span className="stage__presence">
+          <span className="stage__presence-dot" aria-hidden="true" />
+          Offline
+        </span>
+      ) : null}
     </header>
   );
 }

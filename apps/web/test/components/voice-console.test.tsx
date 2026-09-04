@@ -364,6 +364,15 @@ describe('VoiceConsole', () => {
     });
   });
 
+  it('uses AskKyra identity without a visible ready label on the start screen', () => {
+    const { factory } = fakeFactory();
+    render(<VoiceConsole createTransport={factory} />);
+
+    expect(screen.getByText('AskKyra')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Talk to Kyra' })).toBeVisible();
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
+  });
+
   it('moves from the voice orb to the transcript when the user starts typing', async () => {
     const { factory, created } = fakeFactory();
     const user = userEvent.setup();
@@ -380,7 +389,7 @@ describe('VoiceConsole', () => {
     expect(screen.getByText('hello')).toBeInTheDocument();
   });
 
-  it('anchors one subtle announced status to the orb instead of rendering a second visual hero', async () => {
+  it('keeps the orb status announced but visually hidden during routine conversation', async () => {
     const { factory } = fakeFactory();
     const user = userEvent.setup();
     const { container } = render(<VoiceConsole createTransport={factory} />);
@@ -390,6 +399,7 @@ describe('VoiceConsole', () => {
     const telemetry = container.querySelector('.orb-stage__telemetry');
     expect(telemetry).toContainElement(screen.getByRole('status'));
     expect(screen.getByRole('status')).toHaveAttribute('data-variant', 'orb');
+    expect(screen.getByText('Listening')).toHaveClass('sr-only');
     expect(screen.getByText('The agent is listening for you.')).toHaveClass('sr-only');
   });
 

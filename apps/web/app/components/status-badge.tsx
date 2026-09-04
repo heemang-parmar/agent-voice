@@ -9,6 +9,7 @@ export interface StatusBadgeProps {
   description?: string;
   variant?: 'default' | 'orb' | 'compact';
   showDescription?: boolean;
+  visuallyHidden?: boolean;
 }
 
 /**
@@ -22,12 +23,14 @@ export function StatusBadge({
   description,
   variant = 'default',
   showDescription = false,
+  visuallyHidden = false,
 }: StatusBadgeProps) {
   const info = statusInfo(status);
   const descriptionClass =
-    (variant === 'orb' || variant === 'compact') && !showDescription
+    visuallyHidden || ((variant === 'orb' || variant === 'compact') && !showDescription)
       ? 'status-badge__description sr-only'
       : 'status-badge__description';
+  const labelClass = visuallyHidden ? 'status-badge__label sr-only' : 'status-badge__label';
   return (
     <div
       className="status-badge"
@@ -36,7 +39,7 @@ export function StatusBadge({
       role="status"
       aria-live="polite"
     >
-      <p className="status-badge__label">
+      <p className={labelClass}>
         <span className={`status-badge__dot status-badge__dot--${status}`} aria-hidden="true" />
         {label ?? info.label}
       </p>

@@ -11,6 +11,12 @@ describe('StartScreen', () => {
     expect(onStart).not.toHaveBeenCalled();
   });
 
+  it('uses the product-specific conversation invitation', () => {
+    render(<StartScreen onStart={vi.fn()} missingConfig={[]} heading="Talk to Kyra" />);
+    expect(screen.getByRole('heading', { name: 'Talk to Kyra' })).toBeInTheDocument();
+    expect(screen.queryByText('Talk to your agent')).not.toBeInTheDocument();
+  });
+
   it('starts a voice session only after the user clicks Start voice', async () => {
     const onStart = vi.fn();
     const user = userEvent.setup();

@@ -37,4 +37,18 @@ describe('StatusBadge', () => {
     );
     expect(screen.getByText(/microphone stopped working/i)).toBeInTheDocument();
   });
+
+  it('can hide routine state copy visually while keeping errors visible', () => {
+    render(
+      <StatusBadge
+        status="listening"
+        visuallyHidden
+        micError="Microphone permission was not granted. You can keep typing."
+      />,
+    );
+
+    expect(screen.getByText('Listening')).toHaveClass('sr-only');
+    expect(screen.getByText('The agent is listening for you.')).toHaveClass('sr-only');
+    expect(screen.getByText(/microphone permission was not granted/i)).not.toHaveClass('sr-only');
+  });
 });

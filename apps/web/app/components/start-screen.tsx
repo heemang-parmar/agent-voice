@@ -5,6 +5,7 @@ import { AgentOrb } from './agent-orb';
 export interface StartScreenProps {
   onStart: (mode: SessionMode) => void;
   missingConfig: string[];
+  heading?: string;
 }
 
 /**
@@ -12,7 +13,11 @@ export interface StartScreenProps {
  * that only happens once the caller's `onStart('voice')` handler connects a
  * transport, which itself only requests media after this explicit click.
  */
-export function StartScreen({ onStart, missingConfig }: StartScreenProps) {
+export function StartScreen({
+  onStart,
+  missingConfig,
+  heading = 'Talk to agent',
+}: StartScreenProps) {
   const unconfigured = missingConfig.length > 0;
 
   return (
@@ -37,7 +42,7 @@ export function StartScreen({ onStart, missingConfig }: StartScreenProps) {
         </div>
       ) : (
         <div className="start-screen__panel">
-          <h2 className="start-screen__title">Talk to your agent</h2>
+          <h2 className="start-screen__title">{heading}</h2>
           <p className="start-screen__lede">
             Speak naturally, or type instead. Nothing is recorded until you start.
           </p>
