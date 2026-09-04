@@ -355,7 +355,7 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
           {view === 'text' ? (
             <div className="stage__stream" ref={stream}>
               <TranscriptView entries={shownTranscript} />
-              {!archived && actions.length > 0 ? (
+              {!archived && !saved && actions.length > 0 ? (
                 <ActionTimeline
                   actions={actions}
                   onCancel={(actionId) => void session.cancelAction(actionId)}

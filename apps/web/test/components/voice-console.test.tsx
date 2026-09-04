@@ -597,6 +597,25 @@ describe('VoiceConsole', () => {
     expect(screen.getByRole('button', { name: /^new conversation$/i })).toBeInTheDocument();
   });
 
+  it('hides live action controls when an in-flight action becomes part of a saved conversation', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    for (const event of scenarios.delegation.events.slice(0, 6))
+      created[0]!.callbacks.onEvent(event);
+    await user.click(screen.getByRole('button', { name: /show text chat/i }));
+    expect(await screen.findByRole('list', { name: /action timeline/i })).toBeInTheDocument();
+
+    created[0]!.callbacks.onDisconnected('agent');
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/saved/i);
+    expect(screen.queryByRole('list', { name: /action timeline/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
+  });
+
   it('returns to the start screen when a session ends with nothing in it', async () => {
     const { factory, created, log } = fakeFactory();
     const user = userEvent.setup();
