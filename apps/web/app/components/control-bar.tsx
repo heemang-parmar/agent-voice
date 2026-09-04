@@ -1,6 +1,6 @@
 import type { SessionStatus } from '@/lib/client/session-state';
 
-import { EndIcon, MicIcon, MicOffIcon } from './icons';
+import { MicIcon, MicOffIcon, TranscriptIcon } from './icons';
 
 export type ConversationView = 'voice' | 'text';
 
@@ -9,7 +9,11 @@ export interface ControlBarProps {
   audioBlocked: boolean;
   status: SessionStatus;
   onToggleMic: (enabled: boolean) => void;
-  onEnd: () => void;
+  /**
+   * Leaves the voice view for the transcript. It is a view change and nothing
+   * more: the room, the transcript and any draft all survive it.
+   */
+  onReturnToChat: () => void;
   onRetry: () => void;
   onResumeAudio: () => void;
   viewMode: ConversationView;
@@ -20,24 +24,19 @@ export function ControlBar({
   audioBlocked,
   status,
   onToggleMic,
-  onEnd,
+  onReturnToChat,
   onRetry,
   onResumeAudio,
   viewMode,
 }: ControlBarProps) {
   const canRetry = status === 'error';
 
-  if (status === 'ended') {
-    return (
-      <div className="control-bar">
-        <div className="control-bar__buttons">
-          <button type="button" className="button button--primary" onClick={onRetry}>
-            New conversation
-          </button>
-        </div>
-      </div>
-    );
-  }
+  /*
+   * A finished session never reaches the dock: the console replaces the whole
+   * dock with the saved transcript, or with the start screen when there was
+   * nothing to save. Restarting is offered there, not here.
+   */
+  if (status === 'ended') return null;
 
   const showButtons = viewMode === 'voice' || canRetry;
   if (!audioBlocked && !showButtons) return null;
@@ -68,12 +67,13 @@ export function ControlBar({
               </button>
               <button
                 type="button"
-                className="icon-button icon-button--danger"
-                aria-label="End voice"
-                title="End voice session"
-                onClick={onEnd}
+                className="button button--quiet control-bar__chat"
+                aria-label="Return to chat"
+                title="Return to the text conversation"
+                onClick={onReturnToChat}
               >
-                <EndIcon />
+                <TranscriptIcon />
+                <span>Chat</span>
               </button>
             </>
           ) : null}

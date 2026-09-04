@@ -273,16 +273,17 @@ describe('text-mode push to talk', () => {
     expect(transport.mic).toEqual([true, false, true]);
   });
 
-  it('disables PTT before ending the session', async () => {
+  it('releases PTT before the new-conversation reset disconnects the old session', async () => {
     const { factory, created } = fakeFactory();
     const { button, user } = await startInText(factory);
     const transport = created[0]!;
     transport.mic.length = 0;
 
     fireEvent.pointerDown(button, { pointerId: 8, button: 0, isPrimary: true });
-    await user.click(screen.getByRole('button', { name: /^end conversation$/i }));
+    await user.click(screen.getByRole('button', { name: /^new conversation$/i }));
 
     await waitFor(() => expect(transport.mic).toEqual([true, false]));
     expect(transport.disconnects).toBe(1);
+    await waitFor(() => expect(created).toHaveLength(2));
   });
 });

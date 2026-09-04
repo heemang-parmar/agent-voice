@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createLiveKitTransport } from '@/lib/client/livekit-transport';
 import {
   addGroup,
+  deriveTitle,
   moveConversation,
   readLibrary,
   renameConversation,
@@ -23,7 +24,8 @@ import { AgentOrb } from './agent-orb';
 import { ApprovalCard } from './approval-card';
 import { ControlBar, type ConversationView } from './control-bar';
 import { ConversationBar } from './conversation-bar';
-import { TranscriptIcon } from './icons';
+import { ConversationMenu } from './conversation-menu';
+import { NewChatIcon, TranscriptIcon } from './icons';
 import { SessionDrawer } from './session-drawer';
 import { StartScreen } from './start-screen';
 import { StatusBadge } from './status-badge';
@@ -166,13 +168,6 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
   const retry = (): void => {
     startFresh(lastMode.current);
   };
-  const endSession = (): void => {
-    void (async () => {
-      await pushToTalk.release();
-      await session.end();
-    })();
-  };
-
   const awaitingConfig = session.state.phase === 'error' && session.missingConfig.length > 0;
   const notStarted = session.state.phase === 'idle' || awaitingConfig;
 
@@ -191,24 +186,53 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
       : (library.conversations.find((record) => record.id === archivedId) ?? null);
   const shownTranscript = archived ? archived.transcript : transcript;
   const hasTranscript = shownTranscript.length > 0;
-  const changeView = (view: ConversationView): void => {
-    if (viewModeRef.current === view) {
-      if (view === 'text') composerInput.current?.focus();
+  const ended = session.status === 'ended';
+
+  /*
+   * One post-session model for both modes. A conversation that finished with
+   * something in it is a saved one and reads as its transcript, whichever
+   * view it happened to end in; a conversation that finished with nothing in
+   * it has nothing to show, so the start screen comes back instead of an orb
+   * captioned "Ended".
+   */
+  if (!archived && ended && !hasTranscript) {
+    return (
+      <main className="stage stage--start">
+        <StageHeader presence="Ready" />
+        <StartScreen onStart={startFresh} missingConfig={session.missingConfig} />
+      </main>
+    );
+  }
+
+  const saved = archived !== null || ended;
+  /** Saved conversations are read as text; only a live session has a choice. */
+  const view: ConversationView = saved ? 'text' : viewMode;
+  const currentId = archivedId ?? librarySessionId;
+  const currentRecord = library.conversations.find((record) => record.id === currentId) ?? null;
+
+  /**
+   * The only way between the two views. It is a view change and nothing else:
+   * the room, the transcript and any draft all survive it, and `session.end`
+   * is never on this path.
+   */
+  const changeView = (next: ConversationView): void => {
+    if (viewModeRef.current === next) {
+      if (next === 'text') composerInput.current?.focus();
       return;
     }
     // This focus must remain inside the originating tap/click. Mobile Safari
     // will not open its software keyboard for the later autofocus effect.
-    viewModeRef.current = view;
-    if (view === 'text') {
+    viewModeRef.current = next;
+    if (next === 'text') {
       composerInput.current?.focus();
     } else {
       // Keep the software keyboard from covering the immersive voice view.
       composerInput.current?.blur();
     }
-    setViewMode(view);
-    lastMode.current = view;
+    setViewMode(next);
+    lastMode.current = next;
     if (!connected) return;
-    if (view === 'text') {
+    if (next === 'text') {
       void session.setMicrophoneEnabled(false);
     } else {
       void (async () => {
@@ -217,14 +241,14 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
       })();
     }
   };
-  const switchingToText = connected && viewMode === 'text' && session.state.micEnabled;
+  const switchingToText = connected && view === 'text' && session.state.micEnabled;
   const textReady =
-    connected && viewMode === 'text' && !session.state.micEnabled && session.status === 'listening';
-  const microphoneOff = connected && viewMode === 'voice' && !session.state.micEnabled;
+    connected && view === 'text' && !session.state.micEnabled && session.status === 'listening';
+  const microphoneOff = connected && view === 'voice' && !session.state.micEnabled;
   const voiceMuted = microphoneOff && session.status === 'listening';
   const visualStatus = textReady || voiceMuted ? 'idle' : session.status;
   const pushToTalkStatus =
-    viewMode === 'text' && pushToTalk.phase !== 'idle'
+    view === 'text' && pushToTalk.phase !== 'idle'
       ? pushToTalk.phase === 'starting'
         ? { label: 'Starting microphone', description: 'Preparing voice input…' }
         : pushToTalk.phase === 'listening'
@@ -236,14 +260,19 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
     <>
       <main
         className="stage"
-        data-transcript={viewMode === 'text' && hasTranscript ? 'active' : 'empty'}
-        data-view={viewMode}
+        data-transcript={view === 'text' && hasTranscript ? 'active' : 'empty'}
+        data-view={view}
         inert={sessionsOpen}
       >
-        {viewMode === 'voice' ? <VoiceHeader onShowText={() => changeView('text')} /> : null}
+        {view === 'voice' ? (
+          <VoiceHeader
+            onShowText={() => changeView('text')}
+            onNewConversation={() => startFresh('text')}
+          />
+        ) : null}
 
         <div className="stage__body">
-          {viewMode === 'voice' ? (
+          {view === 'voice' ? (
             <div className="stage__focus">
               <div className="orb-stage">
                 <AgentOrb status={visualStatus} scale="hero" />
@@ -276,19 +305,34 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
             <ConversationBar
               sessionsOpen={sessionsOpen}
               onOpenSessions={openSessions}
-              action={archived || session.status === 'ended' ? 'new' : 'end'}
-              onEnd={endSession}
               onNewConversation={() => startFresh('text')}
+              options={
+                hasTranscript ? (
+                  <ConversationMenu
+                    title={currentRecord?.title ?? deriveTitle(shownTranscript)}
+                    pinned={currentRecord?.pinned ?? false}
+                    groups={library.groups.filter((group) => group.id !== currentRecord?.groupId)}
+                    onOpen={() => {
+                      setLibrary(readLibrary());
+                    }}
+                    onRename={(title) =>
+                      editLibrary((current) => renameConversation(current, currentId, title))
+                    }
+                    onTogglePin={(pinned) =>
+                      editLibrary((current) => setConversationPinned(current, currentId, pinned))
+                    }
+                    onMove={(groupId) =>
+                      editLibrary((current) => moveConversation(current, currentId, groupId))
+                    }
+                  />
+                ) : undefined
+              }
               status={
                 <StatusBadge
-                  status={archived ? 'ended' : session.status}
+                  status={saved ? 'ended' : session.status}
                   variant="compact"
-                  micError={
-                    archived || textReady || switchingToText || session.status === 'ended'
-                      ? null
-                      : session.state.micError
-                  }
-                  {...(archived
+                  micError={saved || textReady || switchingToText ? null : session.state.micError}
+                  {...(saved
                     ? {
                         label: 'Saved',
                         description:
@@ -308,7 +352,7 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
             />
           )}
 
-          {viewMode === 'text' && (archived || session.status !== 'ended' || hasTranscript) ? (
+          {view === 'text' ? (
             <div className="stage__stream" ref={stream}>
               <TranscriptView entries={shownTranscript} />
               {!archived && actions.length > 0 ? (
@@ -321,7 +365,7 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
           ) : null}
         </div>
 
-        {archived ? null : (
+        {saved ? null : (
           <div className="stage__dock">
             <ApprovalCard
               approval={session.state.pendingApproval}
@@ -330,38 +374,34 @@ export function VoiceConsole({ createTransport = createLiveKitTransport }: Voice
               }
             />
             <div className="dock">
-              {session.status !== 'ended' ? (
-                <TextComposer
-                  disabled={!connected}
-                  autoFocus={connected && viewMode === 'text'}
-                  inputRef={composerInput}
-                  onInteraction={() => changeView('text')}
-                  onSend={(text) => void session.sendText(text)}
-                  {...(viewMode === 'text'
-                    ? {
-                        onEnterVoiceMode: () => changeView('voice'),
-                        pushToTalk: {
-                          disabled: !connected || switchingToText,
-                          phase: pushToTalk.phase,
-                          onStart: pushToTalk.start,
-                          onRelease: () => void pushToTalk.release(),
-                        },
-                      }
-                    : {})}
-                />
-              ) : null}
-              {viewMode === 'text' && session.status === 'ended' ? null : (
-                <ControlBar
-                  micEnabled={session.state.micEnabled}
-                  audioBlocked={session.state.audioBlocked}
-                  status={session.status}
-                  onToggleMic={(enabled) => void session.setMicrophoneEnabled(enabled)}
-                  onEnd={endSession}
-                  onRetry={retry}
-                  onResumeAudio={() => void session.resumeAudio()}
-                  viewMode={viewMode}
-                />
-              )}
+              <TextComposer
+                disabled={!connected}
+                autoFocus={connected && view === 'text'}
+                inputRef={composerInput}
+                onInteraction={() => changeView('text')}
+                onSend={(text) => void session.sendText(text)}
+                {...(view === 'text'
+                  ? {
+                      onEnterVoiceMode: () => changeView('voice'),
+                      pushToTalk: {
+                        disabled: !connected || switchingToText,
+                        phase: pushToTalk.phase,
+                        onStart: pushToTalk.start,
+                        onRelease: () => void pushToTalk.release(),
+                      },
+                    }
+                  : {})}
+              />
+              <ControlBar
+                micEnabled={session.state.micEnabled}
+                audioBlocked={session.state.audioBlocked}
+                status={session.status}
+                onToggleMic={(enabled) => void session.setMicrophoneEnabled(enabled)}
+                onReturnToChat={() => changeView('text')}
+                onRetry={retry}
+                onResumeAudio={() => void session.resumeAudio()}
+                viewMode={view}
+              />
             </div>
           </div>
         )}
@@ -408,7 +448,18 @@ function StageHeader({ presence }: { presence: 'Ready' | 'Connecting' | 'Live' |
   );
 }
 
-function VoiceHeader({ onShowText }: { onShowText(): void }) {
+/**
+ * The voice view's own header. Leaving voice is not ending anything, so the
+ * only irreversible action offered here is the deliberate reset, and it goes
+ * through the same `startFresh` ordering as every other restart.
+ */
+function VoiceHeader({
+  onShowText,
+  onNewConversation,
+}: {
+  onShowText(): void;
+  onNewConversation(): void;
+}) {
   return (
     <header className="stage__header stage__header--voice">
       <button
@@ -419,6 +470,15 @@ function VoiceHeader({ onShowText }: { onShowText(): void }) {
         onClick={onShowText}
       >
         <TranscriptIcon />
+      </button>
+      <button
+        type="button"
+        className="icon-button stage__header-action"
+        aria-label="New conversation"
+        title="New conversation"
+        onClick={onNewConversation}
+      >
+        <NewChatIcon />
       </button>
     </header>
   );

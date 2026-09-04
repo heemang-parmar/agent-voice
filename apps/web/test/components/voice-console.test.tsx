@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { VoiceConsole } from '@/app/components/voice-console';
 import {
+  addGroup,
   emptyLibrary,
   readLibrary,
   upsertConversation,
@@ -20,6 +21,9 @@ interface FakeTransport extends Transport {
   disconnects: number;
 }
 
+/** Every transport lifecycle call in the order it actually happened. */
+type TransportLog = string[];
+
 function fakeFactory(
   behaviour: {
     connect?: (signal: AbortSignal) => Promise<void>;
@@ -28,8 +32,10 @@ function fakeFactory(
 ): {
   factory: TransportFactory;
   created: FakeTransport[];
+  log: TransportLog;
 } {
   const created: FakeTransport[] = [];
+  const log: TransportLog = [];
   const factory: TransportFactory = (callbacks) => {
     const transport: FakeTransport = {
       callbacks,
@@ -37,6 +43,7 @@ function fakeFactory(
       mic: [],
       disconnects: 0,
       async connect(_mode, signal) {
+        log.push('connect');
         if (behaviour.connect) {
           await behaviour.connect(signal);
           return;
@@ -52,6 +59,7 @@ function fakeFactory(
       sendText: () => Promise.resolve(),
       setMicrophoneEnabled(enabled) {
         transport.mic.push(enabled);
+        log.push(`mic:${String(enabled)}`);
         if (behaviour.setMicrophoneEnabled) {
           return behaviour.setMicrophoneEnabled(enabled, callbacks);
         }
@@ -61,6 +69,7 @@ function fakeFactory(
       resumeAudio: () => Promise.resolve(),
       disconnect() {
         transport.disconnects += 1;
+        log.push('disconnect');
         callbacks.onDisconnected('user');
         return Promise.resolve();
       },
@@ -68,7 +77,7 @@ function fakeFactory(
     created.push(transport);
     return transport;
   };
-  return { factory, created };
+  return { factory, created, log };
 }
 
 /** Puts one saved conversation on this "device" before the console mounts. */
@@ -81,6 +90,14 @@ function seedLibrary(id: string, text: string): void {
       ],
       now: '2026-02-01T00:00:00.000Z',
     }),
+    window.localStorage,
+  );
+}
+
+/** Puts an empty group on this "device", as the drawer's new-group form would. */
+function seedGroup(id: string, name: string): void {
+  writeLibrary(
+    addGroup(readLibrary(window.localStorage), { id, name, now: '2026-02-01T00:00:00.000Z' }),
     window.localStorage,
   );
 }
@@ -171,7 +188,7 @@ describe('VoiceConsole', () => {
     expect(screen.getByText(/mic off/i)).toBeInTheDocument();
   });
 
-  it('ends the session, then offers a new conversation instead of retry', async () => {
+  it('settles a finished session into its saved transcript, then offers a new conversation', async () => {
     const { factory, created } = fakeFactory();
     const user = userEvent.setup();
     render(<VoiceConsole createTransport={factory} />);
@@ -180,17 +197,22 @@ describe('VoiceConsole', () => {
 
     created[0]!.callbacks.onMicError('Microphone permission was not granted. You can keep typing.');
     await user.click(screen.getByRole('button', { name: /show text chat/i }));
+    await user.type(
+      await screen.findByRole('textbox', { name: /message/i }),
+      'Book a table{Enter}',
+    );
 
-    await user.click(await screen.findByRole('button', { name: /^end conversation$/i }));
+    created[0]!.callbacks.onDisconnected('user');
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(/ended/i);
+      expect(screen.getByRole('status')).toHaveTextContent(/saved/i);
     });
 
+    expect(screen.getByText('Book a table')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /message/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/microphone permission was not granted/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/say something, or type below/i)).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /new conversation/i }));
+    await user.click(screen.getByRole('button', { name: /^new conversation$/i }));
     await waitFor(() => expect(created).toHaveLength(2));
   });
 
@@ -206,7 +228,7 @@ describe('VoiceConsole', () => {
     expect(screen.queryByRole('heading', { name: /conversation/i })).not.toBeInTheDocument();
   });
 
-  it('uses one text composer row and moves session ending into the compact bar', async () => {
+  it('uses one text composer row and keeps the conversation actions in the compact bar', async () => {
     const { factory } = fakeFactory();
     const user = userEvent.setup();
     const { container } = render(<VoiceConsole createTransport={factory} />);
@@ -217,7 +239,10 @@ describe('VoiceConsole', () => {
     const bar = container.querySelector('.conversation-bar');
     expect(composer).toContainElement(screen.getByRole('button', { name: /hold to talk/i }));
     expect(composer).toContainElement(screen.getByRole('button', { name: /enter voice mode/i }));
-    expect(bar).toContainElement(screen.getByRole('button', { name: /end conversation/i }));
+    expect(bar).toContainElement(screen.getByRole('button', { name: /^new conversation$/i }));
+    expect(
+      screen.queryByRole('button', { name: /end conversation|end voice/i }),
+    ).not.toBeInTheDocument();
     expect(container.querySelector('.dock > .control-bar')).not.toBeInTheDocument();
     expect(screen.getByText('Type a message or hold the mic to talk.')).toHaveClass('sr-only');
   });
@@ -250,6 +275,8 @@ describe('VoiceConsole', () => {
     await user.tab();
     expect(screen.getByRole('button', { name: /show text chat/i })).toHaveFocus();
     await user.tab();
+    expect(screen.getByRole('button', { name: /^new conversation$/i })).toHaveFocus();
+    await user.tab();
 
     expect(screen.getByRole('textbox', { name: /message/i })).toHaveFocus();
     expect(container.querySelector('main')).toHaveAttribute('data-view', 'voice');
@@ -281,10 +308,12 @@ describe('VoiceConsole', () => {
 
     const header = container.querySelector('.stage__header');
     expect(header).toContainElement(screen.getByRole('button', { name: /show text chat/i }));
+    expect(header).toContainElement(screen.getByRole('button', { name: /^new conversation$/i }));
     expect(header).not.toHaveTextContent(/agent voice|live/i);
     expect(screen.queryByRole('button', { name: /^text$/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /mute/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /end voice/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /return to chat/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /end voice/i })).not.toBeInTheDocument();
   });
 
   it('shows the microphone transition while an explicit text-mode switch is pending', async () => {
@@ -398,9 +427,7 @@ describe('VoiceConsole', () => {
     await user.type(await screen.findByRole('textbox', { name: /message/i }), 'keep this{Enter}');
 
     expect(container.querySelector('main')).toHaveAttribute('data-view', 'text');
-    expect(
-      screen.queryByRole('button', { name: /retry|new conversation/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /conversation/i })).not.toBeInTheDocument();
     expect(screen.getByText('keep this')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /message/i })).toHaveFocus();
@@ -422,16 +449,17 @@ describe('VoiceConsole', () => {
   });
 
   it('keeps connection truth in the single dynamic status instead of a duplicate live badge', async () => {
-    const { factory } = fakeFactory();
+    const { factory, created } = fakeFactory();
     const user = userEvent.setup();
     render(<VoiceConsole createTransport={factory} />);
     await user.click(screen.getByRole('button', { name: /start voice/i }));
     expect(await screen.findByRole('status')).toHaveTextContent(/listening/i);
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
 
-    await user.click(await screen.findByRole('button', { name: /^end voice$/i }));
+    await user.type(await screen.findByRole('textbox', { name: /message/i }), 'hello{Enter}');
+    created[0]!.callbacks.onDisconnected('user');
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(/ended/i);
+      expect(screen.getByRole('status')).toHaveTextContent(/saved/i);
     });
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
   });
@@ -450,25 +478,213 @@ describe('VoiceConsole', () => {
     expect(bar).toBeInTheDocument();
     expect(bar).toContainElement(screen.getByRole('button', { name: /sessions/i }));
     expect(bar).toContainElement(screen.getByRole('status'));
-    expect(bar).toContainElement(screen.getByRole('button', { name: /^end conversation$/i }));
+    expect(bar).toContainElement(screen.getByRole('button', { name: /^new conversation$/i }));
     expect(screen.getAllByRole('status')).toHaveLength(1);
   });
 
   it('keeps the ended text state compact, with New conversation in the bar', async () => {
-    const { factory } = fakeFactory();
+    const { factory, created } = fakeFactory();
     const user = userEvent.setup();
     const { container } = render(<VoiceConsole createTransport={factory} />);
     await user.click(screen.getByRole('button', { name: /start voice/i }));
     await user.click(await screen.findByRole('button', { name: /show text chat/i }));
-    await user.click(await screen.findByRole('button', { name: /^end conversation$/i }));
+    await user.type(
+      await screen.findByRole('textbox', { name: /message/i }),
+      'Book a table{Enter}',
+    );
+    created[0]!.callbacks.onDisconnected('user');
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/ended/i));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/saved/i));
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
     expect(container.querySelector('.conversation-bar')).toContainElement(
-      screen.getByRole('button', { name: /new conversation/i }),
+      screen.getByRole('button', { name: /^new conversation$/i }),
     );
-    expect(screen.getAllByRole('button', { name: /new conversation/i })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /^new conversation$/i })).toHaveLength(1);
     expect(screen.queryByRole('button', { name: /^end conversation$/i })).not.toBeInTheDocument();
+  });
+
+  it('offers a new conversation instead of ending one in the connected text header', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await openTextMode(user);
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    const bar = container.querySelector('.conversation-bar');
+    expect(screen.queryByRole('button', { name: /end conversation/i })).not.toBeInTheDocument();
+    expect(bar).toContainElement(screen.getByRole('button', { name: /^new conversation$/i }));
+    expect(bar).toContainElement(screen.getByRole('button', { name: /sessions/i }));
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+
+    // The overflow is only offered once there is a conversation to act on.
+    expect(
+      screen.queryByRole('button', { name: /current conversation options/i }),
+    ).not.toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: /message/i }), 'Book a table{Enter}');
+    expect(bar).toContainElement(
+      await screen.findByRole('button', { name: /current conversation options/i }),
+    );
+  });
+
+  it('returns from voice to the same conversation without disconnecting the room', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    await user.type(await screen.findByRole('textbox', { name: /message/i }), 'keep this{Enter}');
+    await user.click(screen.getByRole('button', { name: /enter voice mode/i }));
+    expect(container.querySelector('main')).toHaveAttribute('data-view', 'voice');
+    created[0]!.mic.length = 0;
+
+    await user.click(screen.getByRole('button', { name: /return to chat/i }));
+
+    expect(container.querySelector('main')).toHaveAttribute('data-view', 'text');
+    expect(screen.getByText('keep this')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /message/i })).toHaveFocus();
+    // Same room, same session: only the microphone was asked to stand down.
+    expect(created).toHaveLength(1);
+    expect(created[0]?.disconnects).toBe(0);
+    expect(created[0]?.mic).toEqual([false]);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+  });
+
+  it('starts a fresh text session from the voice header, releasing the room first', async () => {
+    const { factory, created, log } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    const header = container.querySelector('.stage__header');
+    await user.click(
+      within(header as HTMLElement).getByRole('button', { name: /^new conversation$/i }),
+    );
+
+    await waitFor(() => expect(created).toHaveLength(2));
+    expect(log).toEqual(['connect', 'disconnect', 'connect']);
+    expect(created[0]?.disconnects).toBe(1);
+    expect(container.querySelector('main')).toHaveAttribute('data-view', 'text');
+    expect(await screen.findByRole('textbox', { name: /message/i })).toBeInTheDocument();
+  });
+
+  it('resolves an ended voice session with history into the saved text transcript', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+    await user.type(
+      await screen.findByRole('textbox', { name: /message/i }),
+      'Book a table{Enter}',
+    );
+    await user.click(screen.getByRole('button', { name: /enter voice mode/i }));
+    expect(container.querySelector('main')).toHaveAttribute('data-view', 'voice');
+
+    created[0]!.callbacks.onDisconnected('agent');
+
+    await waitFor(() =>
+      expect(container.querySelector('main')).toHaveAttribute('data-view', 'text'),
+    );
+    expect(screen.getByText('Book a table')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(/saved/i);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(container.querySelector('[data-orb-state]')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /message/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /hold to talk/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /mute|unmute/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^new conversation$/i })).toBeInTheDocument();
+  });
+
+  it('returns to the start screen when a session ends with nothing in it', async () => {
+    const { factory, created, log } = fakeFactory();
+    const user = userEvent.setup();
+    const { container } = render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+
+    created[0]!.callbacks.onDisconnected('agent');
+
+    const startAgain = await screen.findByRole('button', { name: /start voice/i });
+    expect(container.querySelector('.stage--start')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /message/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^new conversation$/i })).not.toBeInTheDocument();
+
+    // Restarting from here still goes through the safe reset ordering.
+    await user.click(startAgain);
+    await waitFor(() => expect(created).toHaveLength(2));
+    expect(log).toEqual(['connect', 'connect']);
+    expect(container.querySelector('main')).toHaveAttribute('data-view', 'voice');
+  });
+
+  it('persists a rename and a pin from the header menu, through later transcript turns', async () => {
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+    const input = await screen.findByRole('textbox', { name: /message/i });
+    await user.type(input, 'Book a table{Enter}');
+    await waitFor(() => expect(readLibrary(window.localStorage).conversations).toHaveLength(1));
+
+    const options = await screen.findByRole('button', { name: /current conversation options/i });
+    await user.click(options);
+    await user.click(screen.getByRole('menuitem', { name: 'Rename' }));
+    const field = screen.getByRole('textbox', { name: /rename conversation/i });
+    await user.clear(field);
+    await user.type(field, 'Dinner plans');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(readLibrary(window.localStorage).conversations[0]?.title).toBe('Dinner plans'),
+    );
+
+    await user.click(options);
+    await user.click(screen.getByRole('menuitem', { name: 'Pin' }));
+    await waitFor(() =>
+      expect(readLibrary(window.localStorage).conversations[0]?.pinned).toBe(true),
+    );
+
+    // The archiver merges into storage, so a later turn cannot undo either edit.
+    await user.type(input, 'second{Enter}');
+    await waitFor(() => expect(screen.getByText('second')).toBeInTheDocument());
+    const saved = readLibrary(window.localStorage).conversations;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.title).toBe('Dinner plans');
+    expect(saved[0]?.pinned).toBe(true);
+
+    // The drawer reads the same record, not a stale copy.
+    await user.click(screen.getByRole('button', { name: /sessions/i }));
+    expect(await screen.findByRole('button', { name: 'Dinner plans' })).toBeInTheDocument();
+  });
+
+  it('files the current conversation into an existing group from the header menu', async () => {
+    seedGroup('grp_1', 'Travel');
+    const { factory, created } = fakeFactory();
+    const user = userEvent.setup();
+    render(<VoiceConsole createTransport={factory} />);
+    await user.click(screen.getByRole('button', { name: /start voice/i }));
+    await waitFor(() => expect(created).toHaveLength(1));
+    const input = await screen.findByRole('textbox', { name: /message/i });
+    await user.type(input, 'Book a table{Enter}');
+    await waitFor(() => expect(readLibrary(window.localStorage).conversations).toHaveLength(1));
+
+    const options = await screen.findByRole('button', { name: /current conversation options/i });
+    await user.click(options);
+    await user.click(screen.getByRole('menuitem', { name: 'Move to Travel' }));
+    await waitFor(() =>
+      expect(readLibrary(window.localStorage).conversations[0]?.groupId).toBe('grp_1'),
+    );
+
+    // Already filed there, so the move is no longer offered.
+    await user.click(options);
+    expect(screen.queryByRole('menuitem', { name: /move to travel/i })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    await user.type(input, 'second{Enter}');
+    await waitFor(() => expect(screen.getByText('second')).toBeInTheDocument());
+    expect(readLibrary(window.localStorage).conversations[0]?.groupId).toBe('grp_1');
   });
 
   it('opens the session drawer from the bar and closes it back onto its opener', async () => {
@@ -585,9 +801,10 @@ describe('VoiceConsole', () => {
     render(<VoiceConsole createTransport={factory} />);
     await openTextMode(user);
     await waitFor(() => expect(created).toHaveLength(1));
-    await user.click(await screen.findByRole('button', { name: /^end conversation$/i }));
+    await user.click(await screen.findByRole('button', { name: /^new conversation$/i }));
 
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/ended/i));
+    await waitFor(() => expect(created).toHaveLength(2));
+    expect(created[0]?.disconnects).toBeGreaterThan(0);
     expect(readLibrary(window.localStorage).conversations).toEqual([]);
   });
 
@@ -603,10 +820,7 @@ describe('VoiceConsole', () => {
     );
     await waitFor(() => expect(readLibrary(window.localStorage).conversations).toHaveLength(1));
 
-    await user.click(await screen.findByRole('button', { name: /^end conversation$/i }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/ended/i));
-
-    await user.click(screen.getByRole('button', { name: /new conversation/i }));
+    await user.click(screen.getByRole('button', { name: /^new conversation$/i }));
     await waitFor(() => expect(created).toHaveLength(2));
 
     const saved = readLibrary(window.localStorage).conversations;

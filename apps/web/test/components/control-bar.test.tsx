@@ -14,7 +14,7 @@ describe('ControlBar', () => {
         audioBlocked={false}
         status="listening"
         onToggleMic={onToggleMic}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
@@ -34,7 +34,7 @@ describe('ControlBar', () => {
         audioBlocked={false}
         status="listening"
         onToggleMic={onToggleMic}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
@@ -44,26 +44,33 @@ describe('ControlBar', () => {
     expect(onToggleMic).toHaveBeenCalledWith(true);
   });
 
-  it('ends the session on End voice click', async () => {
-    const onEnd = vi.fn();
+  it('returns to the text view without ending the session or touching the microphone', async () => {
+    const onReturnToChat = vi.fn();
+    const onToggleMic = vi.fn();
     const user = userEvent.setup();
-    render(
+    const { container } = render(
       <ControlBar
         micEnabled
         audioBlocked={false}
         status="listening"
-        onToggleMic={vi.fn()}
-        onEnd={onEnd}
+        onToggleMic={onToggleMic}
+        onReturnToChat={onReturnToChat}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
       />,
     );
-    await user.click(screen.getByRole('button', { name: /^end voice$/i }));
-    expect(onEnd).toHaveBeenCalled();
+
+    expect(screen.queryByRole('button', { name: /end voice/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /return to chat/i }));
+    expect(onReturnToChat).toHaveBeenCalledTimes(1);
+    // Leaving the voice view is not a microphone command of its own: the
+    // console sequences push-to-talk release and mic disable behind it.
+    expect(onToggleMic).not.toHaveBeenCalled();
+    expect(container.querySelector('.icon-button--danger')).not.toBeInTheDocument();
   });
 
-  it('offers Retry only after an error, not while live or after a normal end', async () => {
+  it('offers Retry only after an error, and renders nothing at all once ended', async () => {
     const onRetry = vi.fn();
     const user = userEvent.setup();
     const { rerender } = render(
@@ -72,7 +79,7 @@ describe('ControlBar', () => {
         audioBlocked={false}
         status="listening"
         onToggleMic={vi.fn()}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={onRetry}
         onResumeAudio={vi.fn()}
         viewMode="voice"
@@ -86,7 +93,7 @@ describe('ControlBar', () => {
         audioBlocked={false}
         status="error"
         onToggleMic={vi.fn()}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={onRetry}
         onResumeAudio={vi.fn()}
         viewMode="voice"
@@ -101,16 +108,15 @@ describe('ControlBar', () => {
         audioBlocked={false}
         status="ended"
         onToggleMic={vi.fn()}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={onRetry}
         onResumeAudio={vi.fn()}
         viewMode="text"
       />,
     );
-    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /new conversation/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^end voice$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /unmute|mute/i })).not.toBeInTheDocument();
+    // A finished session never reaches the dock: the console shows the saved
+    // transcript, or the start screen, and restarting is offered there.
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('surfaces a resumable audio-blocked banner from a user gesture', async () => {
@@ -122,7 +128,7 @@ describe('ControlBar', () => {
         audioBlocked
         status="speaking"
         onToggleMic={vi.fn()}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={onResumeAudio}
         viewMode="voice"
@@ -142,16 +148,16 @@ describe('ControlBar', () => {
         audioBlocked={false}
         status="listening"
         onToggleMic={vi.fn()}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
       />,
     );
     expect(screen.getByRole('button', { name: 'Mute' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'End voice' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Return to chat' })).toHaveAttribute(
       'title',
-      'End voice session',
+      'Return to the text conversation',
     );
 
     rerender(
@@ -160,7 +166,7 @@ describe('ControlBar', () => {
         audioBlocked={false}
         status="listening"
         onToggleMic={vi.fn()}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
@@ -176,7 +182,7 @@ describe('ControlBar', () => {
         audioBlocked={false}
         status="listening"
         onToggleMic={vi.fn()}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
@@ -196,7 +202,7 @@ describe('ControlBar', () => {
         audioBlocked={false}
         status="listening"
         onToggleMic={vi.fn()}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
@@ -207,22 +213,25 @@ describe('ControlBar', () => {
     }
   });
 
-  it('keeps the voice control row focused on microphone and ending the session', () => {
+  it('keeps the voice control row focused on the microphone and the way back to text', () => {
     render(
       <ControlBar
         micEnabled
         audioBlocked={false}
         status="listening"
         onToggleMic={vi.fn()}
-        onEnd={vi.fn()}
+        onReturnToChat={vi.fn()}
         onRetry={vi.fn()}
         onResumeAudio={vi.fn()}
         viewMode="voice"
       />,
     );
 
-    expect(screen.queryByRole('button', { name: /show text chat/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mute' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'End voice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Return to chat' })).toHaveTextContent('Chat');
+    expect(
+      screen.queryByRole('button', { name: /end voice|end conversation/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^new conversation$/i })).not.toBeInTheDocument();
   });
 });
