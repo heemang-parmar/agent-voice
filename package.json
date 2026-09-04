@@ -5,7 +5,7 @@
   "description": "A voice action layer for tool-using AI agents: full-duplex voice, live transcripts, and an honest action/approval/result protocol.",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=20.9.0",
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0",
     "pnpm": ">=9.0.0"
   },
   "packageManager": "pnpm@10.30.2",
