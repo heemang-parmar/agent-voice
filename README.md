@@ -63,7 +63,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the request/event flow an
 
 ## Quick start
 
-Requirements: Node.js ≥ 20.9, pnpm ≥ 9, Python 3.12 with
+Requirements: Node.js 22.22.2+, 24.15+, or 26+, pnpm ≥ 9, Python 3.12 with
 [uv](https://docs.astral.sh/uv/) (worker only), and a LiveKit server (self-hosted
 or cloud). The default OpenAI Realtime provider also needs an OpenAI API key;
 LiveKit Inference uses the LiveKit credentials for managed STT → LLM → TTS.

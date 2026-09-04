@@ -5,7 +5,7 @@ quality gate every change must pass, and the rules that keep the project safe to
 
 ## Prerequisites
 
-- Node.js ≥ 20.9 and pnpm ≥ 9
+- Node.js 22.22.2+, 24.15+, or 26+ and pnpm ≥ 9
 - Python 3.12 and [uv](https://docs.astral.sh/uv/) (for the worker)
 - Git
 
