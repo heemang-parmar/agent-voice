@@ -63,7 +63,7 @@ export function TextComposer({
         type="text"
         value={value}
         disabled={disabled}
-        placeholder="Ask Kyra"
+        placeholder="Ask Agent"
         autoComplete="off"
         enterKeyHint="send"
         onPointerDown={onInteraction}

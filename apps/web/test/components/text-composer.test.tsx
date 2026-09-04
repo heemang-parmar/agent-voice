@@ -5,11 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { TextComposer } from '@/app/components/text-composer';
 
 describe('TextComposer', () => {
-  it('invites the user with the Ask Kyra placeholder', () => {
+  it('invites the user with the Ask Agent placeholder', () => {
     render(<TextComposer disabled={false} onSend={vi.fn()} />);
     expect(screen.getByRole('textbox', { name: /message/i })).toHaveAttribute(
       'placeholder',
-      'Ask Kyra',
+      'Ask Agent',
     );
   });
 
