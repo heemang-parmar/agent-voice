@@ -1,6 +1,6 @@
 import type { SessionStatus } from '@/lib/client/session-state';
 
-import { MicIcon, MicOffIcon, TranscriptIcon } from './icons';
+import { EndIcon, MicIcon, MicOffIcon } from './icons';
 
 export type ConversationView = 'voice' | 'text';
 
@@ -67,13 +67,12 @@ export function ControlBar({
               </button>
               <button
                 type="button"
-                className="button button--quiet control-bar__chat"
-                aria-label="Return to chat"
-                title="Return to the text conversation"
+                className="icon-button"
+                aria-label="Close voice mode"
+                title="Close voice mode and return to text"
                 onClick={onReturnToChat}
               >
-                <TranscriptIcon />
-                <span>Chat</span>
+                <EndIcon />
               </button>
             </>
           ) : null}

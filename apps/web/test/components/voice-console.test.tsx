@@ -312,7 +312,7 @@ describe('VoiceConsole', () => {
     expect(header).not.toHaveTextContent(/agent voice|live/i);
     expect(screen.queryByRole('button', { name: /^text$/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /mute/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /return to chat/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /close voice mode/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /end voice/i })).not.toBeInTheDocument();
   });
 
@@ -538,7 +538,7 @@ describe('VoiceConsole', () => {
     expect(container.querySelector('main')).toHaveAttribute('data-view', 'voice');
     created[0]!.mic.length = 0;
 
-    await user.click(screen.getByRole('button', { name: /return to chat/i }));
+    await user.click(screen.getByRole('button', { name: /close voice mode/i }));
 
     expect(container.querySelector('main')).toHaveAttribute('data-view', 'text');
     expect(screen.getByText('keep this')).toBeInTheDocument();

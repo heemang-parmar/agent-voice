@@ -848,15 +848,6 @@ input {
   align-items: center;
 }
 
-.control-bar__chat {
-  gap: var(--space-2);
-  padding-inline: var(--space-4);
-}
-
-.control-bar__chat svg {
-  flex: 0 0 auto;
-}
-
 .control-bar__audio-banner {
   display: flex;
   align-items: center;

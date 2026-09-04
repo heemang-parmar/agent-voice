@@ -62,7 +62,7 @@ describe('ControlBar', () => {
     );
 
     expect(screen.queryByRole('button', { name: /end voice/i })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /return to chat/i }));
+    await user.click(screen.getByRole('button', { name: /close voice mode/i }));
     expect(onReturnToChat).toHaveBeenCalledTimes(1);
     // Leaving the voice view is not a microphone command of its own: the
     // console sequences push-to-talk release and mic disable behind it.
@@ -155,9 +155,9 @@ describe('ControlBar', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Mute' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'Return to chat' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Close voice mode' })).toHaveAttribute(
       'title',
-      'Return to the text conversation',
+      'Close voice mode and return to text',
     );
 
     rerender(
@@ -228,7 +228,9 @@ describe('ControlBar', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Mute' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Return to chat' })).toHaveTextContent('Chat');
+    const closeVoice = screen.getByRole('button', { name: 'Close voice mode' });
+    expect(closeVoice).toHaveClass('icon-button');
+    expect(closeVoice).toHaveTextContent('');
     expect(
       screen.queryByRole('button', { name: /end voice|end conversation/i }),
     ).not.toBeInTheDocument();
