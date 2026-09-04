@@ -110,10 +110,9 @@ def build_agent_session(config: WorkerConfig) -> AgentSession[Any]:
                 },
             ),
             use_tts_aligned_transcript=True,
-            # Browsers already provide WebRTC echo cancellation. LiveKit's
-            # default 3s warmup suppresses genuine barge-ins at the start of
-            # every reply, which makes the agent feel uninterruptible.
-            aec_warmup_duration=0.0,
+            # Keep LiveKit's WebRTC AEC warmup so mobile speaker playout cannot be
+            # transcribed as a fresh user turn before echo cancellation stabilizes.
+            aec_warmup_duration=3.0,
             stt=inference.STT(
                 model=INFERENCE_STT_MODEL,
                 language="en",

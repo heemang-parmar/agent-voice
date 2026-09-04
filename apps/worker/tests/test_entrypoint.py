@@ -157,7 +157,7 @@ async def test_build_agent_session_uses_low_latency_speech_safe_livekit_stack() 
     assert preemptive["preemptive_tts"] is False
 
 
-async def test_livekit_inference_session_allows_immediate_adaptive_barge_in() -> None:
+async def test_livekit_inference_session_protects_adaptive_barge_in_from_initial_echo() -> None:
     config = replace(
         BASE_CONFIG,
         livekit_api_secret="x" * 32,
@@ -175,7 +175,7 @@ async def test_livekit_inference_session_allows_immediate_adaptive_barge_in() ->
     assert interruption["min_duration"] == 0.3
     assert interruption["min_words"] == 0
     assert interruption["resume_false_interruption"] is True
-    assert session._opts.aec_warmup_duration == 0.0
+    assert session._opts.aec_warmup_duration == 3.0
 
 
 def test_build_worker_options_carries_the_fixed_agent_name_and_livekit_credentials() -> None:
