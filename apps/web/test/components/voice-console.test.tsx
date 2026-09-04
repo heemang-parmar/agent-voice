@@ -364,12 +364,12 @@ describe('VoiceConsole', () => {
     });
   });
 
-  it('uses AskKyra identity without a visible ready label on the start screen', () => {
+  it('uses Agent Voice identity without a visible ready label on the start screen', () => {
     const { factory } = fakeFactory();
     render(<VoiceConsole createTransport={factory} />);
 
-    expect(screen.getByText('AskKyra')).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Talk to Kyra' })).toBeVisible();
+    expect(screen.getByText('Agent Voice')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Talk to agent' })).toBeVisible();
     expect(screen.queryByText('Ready')).not.toBeInTheDocument();
   });
 

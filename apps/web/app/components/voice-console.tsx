@@ -32,8 +32,8 @@ import { StatusBadge } from './status-badge';
 import { TextComposer } from './text-composer';
 import { TranscriptView } from './transcript-view';
 
-const PRODUCT_NAME = 'AskKyra';
-const START_SCREEN_HEADING = 'Talk to Kyra';
+const PRODUCT_NAME = 'Agent Voice';
+const START_SCREEN_HEADING = 'Talk to agent';
 
 export interface VoiceConsoleProps {
   createTransport?: TransportFactory;
