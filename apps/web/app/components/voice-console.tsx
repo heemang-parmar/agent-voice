@@ -25,7 +25,7 @@ import { ApprovalCard } from './approval-card';
 import { ControlBar, type ConversationView } from './control-bar';
 import { ConversationBar } from './conversation-bar';
 import { ConversationMenu } from './conversation-menu';
-import { NewChatIcon, TranscriptIcon } from './icons';
+import { GitHubIcon, NewChatIcon, TranscriptIcon } from './icons';
 import { SessionDrawer } from './session-drawer';
 import { StartScreen } from './start-screen';
 import { StatusBadge } from './status-badge';
@@ -453,12 +453,24 @@ function StageHeader({ productName, offline = false }: { productName: string; of
   return (
     <header className="stage__header">
       <span className="stage__wordmark">{productName}</span>
-      {offline ? (
-        <span className="stage__presence">
-          <span className="stage__presence-dot" aria-hidden="true" />
-          Offline
-        </span>
-      ) : null}
+      <div className="stage__header-meta">
+        {offline ? (
+          <span className="stage__presence">
+            <span className="stage__presence-dot" aria-hidden="true" />
+            Offline
+          </span>
+        ) : null}
+        <a
+          className="icon-button stage__source-link"
+          href="https://github.com/heemang-parmar/agent-voice"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="View source on GitHub"
+          title="View source on GitHub"
+        >
+          <GitHubIcon />
+        </a>
+      </div>
     </header>
   );
 }

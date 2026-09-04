@@ -371,6 +371,11 @@ describe('VoiceConsole', () => {
     expect(screen.getByText('Agent Voice')).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Talk to agent' })).toBeVisible();
     expect(screen.queryByText('Ready')).not.toBeInTheDocument();
+
+    const sourceLink = screen.getByRole('link', { name: 'View source on GitHub' });
+    expect(sourceLink).toHaveAttribute('href', 'https://github.com/heemang-parmar/agent-voice');
+    expect(sourceLink).toHaveAttribute('target', '_blank');
+    expect(sourceLink).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it('moves from the voice orb to the transcript when the user starts typing', async () => {
